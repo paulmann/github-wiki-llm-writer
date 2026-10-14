@@ -1,0 +1,81 @@
+name: selftest
+
+# The whole point of this kit is "verify, don't assume" — including the tools
+# themselves. This workflow runs the same checks a user should run locally.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Python syntax
+        run: |
+          fail=0
+          for f in $(find . -name '*.py' -not -path './.git/*'); do
+            python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$f" \
+              && echo "  ok   $f" || { echo "  FAIL $f"; fail=1; }
+          done
+          exit $fail
+
+      - name: Shell syntax
+        run: |
+          fail=0
+          for f in $(find . -name '*.sh' -not -path './.git/*'); do
+            bash -n "$f" && echo "  ok   $f" || { echo "  FAIL $f"; fail=1; }
+          done
+          exit $fail
+
+      - name: JSON templates parse
+        run: |
+          for f in templates/*.json; do
+            python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f" \
+              && echo "  ok   $f"
+          done
+
+      - name: --help works on every tool
+        run: |
+          fail=0
+          for f in scan/repo_scan.py qa/qa_wiki.py scaffold/new_page.py \
+                   probe/webapp_probe.py lib/req.py lib/serve.py; do
+            python3 "$f" --help >/dev/null 2>&1 \
+              && echo "  ok   $f" || { echo "  FAIL $f"; fail=1; }
+          done
+          exit $fail
+
+      - name: QA self-test (the checker must be able to fail)
+        run: python3 qa/qa_wiki.py --self-test
+
+      - name: Scaffold round-trip (scaffold output must be QA-clean)
+        run: |
+          set -e
+          for pages in "Home,Getting Started,Glossary" \
+                       "Home,Architecture,Security Hardening Guide,FAQ,Troubleshooting" \
+                       "Home"; do
+            rm -rf /tmp/rt
+            python3 scaffold/new_page.py /tmp/rt --init --project RT --pages "$pages" >/dev/null
+            python3 qa/qa_wiki.py /tmp/rt --strict
+            echo "  ok   [$pages]"
+          done
+
+      - name: Audit the examples wiki (must stay at zero errors)
+        run: |
+          if [ -d examples/wiki ]; then
+            python3 qa/qa_wiki.py examples/wiki --strict
+          else
+            echo "  (no examples/wiki — skipped)"
+          fi

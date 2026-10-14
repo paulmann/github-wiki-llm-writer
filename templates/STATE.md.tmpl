@@ -1,0 +1,54 @@
+# STATE — {{PROJECT}} Wiki
+
+**Last updated:** {{DATE}}
+**Current phase:** PHASE {{N}} — {{PHASE_NAME}}
+**Subject:** {{REPO_URL}} @ `{{COMMIT}}`
+
+## Mission
+Create a publication-ready GitHub Wiki (English, GFM) for {{REPO_URL}}.
+
+## Layout
+```
+workspace/
+├── STATE.md              ← this file; the recovery point
+├── PROGRESS.json         per-page status + QA results + delivery info
+├── repo/SUBJECT/         the clone (read-only reference)
+├── research/             Phase 1 outputs (see below)
+└── wiki/
+    ├── OWNER.REPO.wiki/  ← THE DELIVERABLE
+    ├── publish/          a clone of the wiki repo with the commit applied
+    ├── *.bundle          verified git bundle (push needs credentials you may lack)
+    ├── PUBLISH.md        how to push
+    └── REPORT.md         what was delivered, how it was verified, what remains
+```
+
+## Confirmed facts (fill from scan/repo_scan.py --brief)
+- versions:
+- dependencies:
+- runtime requirements:
+- entry points:
+- external hosts (supply chain):
+
+## Phase checklist
+- [ ] **P1 research** — clone; `repo_scan.py`; read README + entry points;
+      run the app; `webapp_probe.py`; write research/{summary,architecture,domain-notes}.md,
+      facts.json, sources.md (incl. section D: claims NOT to make)
+- [ ] **P2 architecture** — page tree + groupings + link convention in PROGRESS.json
+      BEFORE any prose; fill templates/ban.json and terms.json
+- [ ] **P3 writing** — `scaffold/new_page.py --init`, then fill pages
+- [ ] **P4 QA** — `qa/qa_wiki.py --strict` to 0 errors; re-run documented commands;
+      `publish/publish.sh`; write REPORT.md
+
+## Done so far
+{{BULLETS}}
+
+## Next action
+{{NEXT}}
+
+## Notes for a fresh agent (the point of this file)
+- Do not trust the subject's README: verify every claim (see templates/ban.json).
+- Re-read setup/PITFALLS.md before writing any probe — the first three
+  entries produce silently WRONG results.
+- Everything in the wiki must trace to a source line or a reproduced test.
+- If context was compacted: research/facts.json + research/sources.md are enough
+  to resume writing without re-reading the subject's code.

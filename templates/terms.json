@@ -1,0 +1,71 @@
+{
+  "_comment": [
+    "Canonical terminology for a wiki. qa_wiki.py --terms checks two things:",
+    "  canonical : term -> regex. Counts usage so you can see which terms are actually",
+    "              being used consistently (and spot one that is never used at all).",
+    "  avoid     : term -> regex. Any match is an ERROR — these are synonyms that",
+    "              fragment the documentation.",
+    "",
+    "HOW TO BUILD THIS for a new subject:",
+    "  1. Write research/domain-notes.md with a glossary section first.",
+    "  2. Copy each glossary term into `canonical` with a regex that matches it.",
+    "  3. For each term, think of the near-synonym a tired writer would reach for",
+    "     and put THAT in `avoid` with a note. This is the highest-value part:",
+    "     the failure mode is not wrong terms, it is five terms for one concept.",
+    "  4. Terms the subject's own source code coins are the most important to lock",
+    "     down — do not paraphrase the project's own vocabulary."
+  ],
+  "canonical": {
+    "browse root": "browse root",
+    "viewer mode": "viewer mode",
+    "file browser mode": "file browser mode|browser mode",
+    "tracked file": "tracked file",
+    "managed file": "managed file",
+    "feature toggle": "feature toggle",
+    "hard lock": "hard[- ]lock",
+    "interface gate": "interface gate",
+    "access control": "access control",
+    "path validator": "path validator",
+    "pre-write guard": "pre-write guard",
+    "same-origin guard": "same-origin guard",
+    "machine API": "machine (json )?api"
+  },
+  "avoid": {
+    "browse directory (use 'browse root')": "browse director",
+    "file manager mode (use 'file browser mode')": "file manager mode",
+    "API token (use 'API_KEY' or 'key')": "\\bapi token\\b",
+    "ini file (say '.md.ini' explicitly)": "(?<!\\.md)\\.ini file"
+  },
+  "_example_for_a_different_subject": {
+    "_note": "Delete this block. It shows the shape for a hypothetical CLI tool.",
+    "canonical": {
+      "workspace": "workspace",
+      "manifest": "manifest file|\\bmanifest\\b",
+      "resolve": "\\bresolve[sd]?\\b"
+    },
+    "avoid": {
+      "project dir (use 'workspace')": "project dir",
+      "config (ambiguous — say 'manifest' or 'settings')": "\\bconfig\\b(?!uration reference)"
+    }
+  },
+  "_tuning_warning": [
+    "EVERY `avoid` pattern must be tuned per project, and narrow beats broad.",
+    "",
+    "Two patterns were REMOVED from this template because they produced false",
+    "positives on a real 73k-word wiki:",
+    "  * 'base director'  — legitimate when describing a code function whose job IS",
+    "    a base directory (e.g. `docRoot()`), which is a different concept from the",
+    "    domain term 'browse root'.",
+    "  * 'config file'    — legitimate generic prose ('without editing a config",
+    "    file'); forcing '.md.ini' into every mention makes the writing worse.",
+    "",
+    "Before trusting an `avoid` entry, run it against the finished wiki and read",
+    "every hit. A pattern that fires on correct prose trains you to ignore the",
+    "check, which is worse than not having it. Prefer patterns that match a",
+    "specific WRONG phrase over patterns that match a common noun.",
+    "",
+    "`canonical` entries only COUNT usage — they never fail — so they are safe to",
+    "leave broad. Use them to spot a term you defined in the glossary but never",
+    "actually used, or one used 90 times alongside a synonym used twice."
+  ]
+}

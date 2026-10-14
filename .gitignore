@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Working artefacts of a run — these belong in your workspace, not in the kit.
+# Anchored with a leading slash so examples/research/ (shipped on purpose) is kept.
+/workspace/
+/research/
+/wiki/
+*.bundle
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Test leftovers
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+probe-app-*/
+.e2e/
+.scratch/

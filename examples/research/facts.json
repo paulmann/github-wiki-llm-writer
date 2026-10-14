@@ -1,0 +1,245 @@
+# facts.json — verified facts about MD.Viewer
+
+> Every entry below is traceable to repository source or to an empirical test run
+> in the sandbox (PHP 8.2.34 CLI + `php -S`, 2026-10-13/14).
+> `source` values: `code:<file>:<line>` · `readme` · `git` · `test:<name>` · `web:<url>`
+
+```json
+{
+  "identity": {
+    "project": "MD.Viewer",
+    "repository": "https://github.com/paulmann/MD.Viewer",
+    "wiki_repository": "https://github.com/paulmann/MD.Viewer.wiki.git",
+    "project_version": "2.11.3",
+    "project_version_source": "readme header comment + tracked-file list",
+    "author": "Mikhail Deynekin",
+    "author_email": "Mikhail@Deynekin.com",
+    "author_site": "https://Deynekin.com",
+    "license": "MIT",
+    "license_version": "1.0.0",
+    "copyright": "Copyright (c) 2026 Mikhail Deynekin",
+    "tagline": "A secure, self-hosted PHP Markdown viewer and browser"
+  },
+  "component_versions": {
+    "md.php": "2.18.0",
+    "updater.php": "3.14.0",
+    "js/md/md.js": "2.7.0",
+    "js/md/settings.js": "2.11.0",
+    "js/md/tooltips.js": "2.4.5",
+    "js/md/upload.js": "2.9.1",
+    "css/md/md.css": "2.2.2",
+    "css/md/settings.css": "2.9.0",
+    "css/md/tooltips.css": "2.4.5",
+    "README.md": "2.11.3",
+    "LICENSE": "1.0.0",
+    "source": "test:machine_api_status (updater reported these exact versions)"
+  },
+  "repository_metrics": {
+    "total_commits": 157,
+    "default_branch": "main",
+    "tags": [],
+    "releases": [],
+    "first_commit_date": "2026-06-16",
+    "source": "git"
+  },
+  "file_inventory": [
+    {"path": "md.php", "lines": 4709, "bytes": 202145, "role": "viewer + file browser (single entry point)"},
+    {"path": "updater.php", "lines": 2799, "bytes": 111768, "role": "self-updater, backups, upload, machine API"},
+    {"path": "README.md", "bytes": 26614, "role": "primary documentation"},
+    {"path": "LICENSE", "bytes": 1550, "role": "MIT + attribution clause"},
+    {"path": "css/md/md.css", "bytes": 17171},
+    {"path": "css/md/settings.css", "bytes": 21774},
+    {"path": "css/md/tooltips.css", "bytes": 4479},
+    {"path": "js/md/md.js", "bytes": 30480},
+    {"path": "js/md/settings.js", "bytes": 54747},
+    {"path": "js/md/tooltips.js", "bytes": 15345},
+    {"path": "js/md/upload.js", "bytes": 12116},
+    {"path": "tools/Invoke-ProjectDoctrine.ps1", "bytes": 56696, "note": "PowerShell, not part of runtime"},
+    {"path": "tools/Test-DoctrineFalsifiability.ps1", "bytes": 17380},
+    {"path": "tools/Test-ViewerRobustness.ps1", "bytes": 7274},
+    {"path": ".gitignore", "bytes": 122, "content": ".ragf/ local index exclusion"}
+  ],
+  "runtime_requirements": {
+    "php": "8.3+ (documented); runs on PHP 8.2.34 in sandbox testing",
+    "php_note": "No version_compare() guard exists in either PHP file — the 8.3+ requirement is documented, not enforced at runtime. Source: grep for PHP_VERSION/version_compare returned only semver sorts.",
+    "extensions_required": ["mbstring", "curl"],
+    "curl_enforced_by": "updater.php:159 RawFileUpdater::__construct throws RuntimeException('The cURL extension is required.')",
+    "web_servers_documented": ["Apache", "Nginx", "Caddy", "IIS", "PHP built-in server"],
+    "database": "none",
+    "build_step": "none",
+    "framework": "none",
+    "composer": "no composer.json — zero PHP dependencies"
+  },
+  "external_network_dependencies": [
+    {"url": "https://cdn.tailwindcss.com", "injected_by": "md.php:3611 <script src>", "purpose": "utility CSS (JIT, browser-side)", "blocking": true},
+    {"url": "https://fonts.googleapis.com/css2?family=Inter...&family=Sora...", "injected_by": "md.php:3654 <link rel=stylesheet>", "purpose": "webfonts", "preconnect": ["https://fonts.googleapis.com", "https://fonts.gstatic.com"]},
+    {"url": "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs", "injected_by": "js/md/md.js:291 dynamic import()", "purpose": "Mermaid diagram rendering", "loaded_when": "only if <pre class=\"mermaid\"> exists in output"},
+    {"url": "https://raw.githubusercontent.com/paulmann/MD.Viewer/refs/heads/main", "injected_by": "updater.php:110 const RAW_BASE", "purpose": "self-update source"}
+  ],
+  "readme_claim_not_found_in_code": {
+    "claim": "Browser-side internet access for CDN assets (Mermaid, syntax highlighting, Tailwind)",
+    "finding": "No syntax-highlighting library is referenced anywhere in the repository. Fenced code blocks are emitted as <pre><code class=\"language-XXX\"> with no highlighter loaded. Verified by grep for cdn|unpkg|jsdelivr|cdnjs|highlight across all .php/.js/.css — only 3 external URLs exist (Tailwind, Google Fonts, Mermaid).",
+    "impact": "documentation inaccuracy; wiki must not repeat the claim"
+  },
+  "ini_keys": {
+    "install_level": {
+      "DISABLE_UPLOAD": {"default": true, "type": "bool", "auto_appended": false, "note": "present in the generated template"},
+      "DISABLE_CLIPBOARD": {"default": false, "type": "bool", "auto_appended": false},
+      "DISABLE_SAVE_CLIPBOARD_TO_FILE": {"default": true, "type": "bool", "auto_appended": true, "code": "md.php:410-414"},
+      "ALLOW_UPDATE": {"default": false, "type": "bool", "auto_appended": true, "code": "md.php:415-419 / define at 455"},
+      "ALLOW_RESTORE": {"default": false, "type": "bool", "auto_appended": true, "code": "md.php:420-424 / define at 456"},
+      "ALLOW_CREATE_INDEX_PHP_LINK": {"default": true, "type": "bool", "auto_appended": true, "code": "md.php:425-429 / define at 457"},
+      "API_KEY": {"default": "auto-generated 'mdv_' + bin2hex(random_bytes(24)) = 48 hex chars", "created_by": "updater.php readIni()", "NOT_created_by": "md.php", "code": "updater.php:1105 generateApiKey()", "test": "test:api_key_autogen confirmed 'mdv_de5eec83...' written after first updater.php hit"},
+      "BROWSE_DIR": {"default": "empty (= md.php's own directory)", "type": "string", "max_length": 255, "resolution_order": ["value as-is when absolute (/ or \\ or C:\\)", "DOCUMENT_ROOT + value", "__DIR__ + value"], "rejects": "value > 255 bytes or containing NUL", "code": "md.php:459-505"}
+    },
+    "per_directory_keys": ["DISABLE_UPLOAD", "DISABLE_CLIPBOARD", "DISABLE_SAVE_CLIPBOARD_TO_FILE"],
+    "per_directory_ignored_keys": ["BROWSE_DIR", "API_KEY", "ALLOW_UPDATE", "ALLOW_RESTORE", "ALLOW_CREATE_INDEX_PHP_LINK"],
+    "per_directory_consts": {"MDV_PER_DIR_KEYS": "md.php:632", "MDV_INSTALL_KEYS": "md.php:634", "MDV_FLAG_DEFAULTS": "md.php:636", "MDV_DIR_MAX_LENGTH": 255, "MDV_DIR_MAX_DEPTH": 3},
+    "per_directory_precedence": "base .md.ini, then every .md.ini from browse root down to the document's directory; deeper wins",
+    "value_parsing": "trimmed; optional paired quotes stripped; rejected if it contains NUL/newline or exceeds 255 bytes; parse_ini_file(path, false, INI_SCANNER_TYPED)"
+  },
+  "feature_toggles": {
+    "mechanism": "feat($name, $default) — precedence: .md.ini override ($GLOBALS['_MDV_INI_OVERRIDE']) > cookie mdv_feat_{NAME} > compiled default",
+    "code": "md.php:512-533; defines at md.php:534-559",
+    "bool_toggles_default_true": ["AUTO_NUMBERING", "AUTO_TOC", "AUTO_FOOTNOTES_LINKS", "DOUBLE_LINE_BREAKS", "CYPHER_PATTERNS", "UNIVERSAL_PATTERNS", "FEATURE_IMAGES", "FEATURE_REF_LINKS", "FEATURE_TASK_LISTS", "FEATURE_FOOTNOTES", "FEATURE_SUBSUP", "FEATURE_EMOJI", "SPLIT_TITLE_BY_COLON", "GLOSSARY_TOOLTIPS", "FEATURE_DOWNLOAD_ICON", "FEATURE_DOWNLOAD_BUTTON", "FEATURE_COPY_BUTTON"],
+    "string_toggle": {"PARAGRAPH_BREAK_STYLE": "default 'double-br'"},
+    "special": {"COOKIE_ACCEPT": "hardcoded define(false) at md.php:557 — master switch managed only via JS/cookie, not a feat() toggle"}
+  },
+  "constants_limits": {
+    "MAX_FILE_PARAM_LENGTH": 255,
+    "MAX_SCAN_DEPTH": 3,
+    "MAX_FILES_SCAN": 10000,
+    "SORT_DEFAULT_KEY": "modified",
+    "SORT_DEFAULT_DIR": "desc",
+    "clipboard_preview_max_bytes": 2097152,
+    "clipboard_limit_code": "md.php:3492 substr($raw, 0, 2*1024*1024)",
+    "updater_conflict_scan_max_files": 20000,
+    "updater_conflict_scan_skip_dirs": [".git", "md.backup", "node_modules", "vendor"],
+    "updater_curl_timeout_seconds": 15,
+    "updater_min_download_bytes": 64,
+    "php_render_loop_guard": "30 s PHP limit referenced in v2.16.0 changelog"
+  },
+  "path_validator": {
+    "function": "validateRequestedFile(string $file, string $baseDir): ?string",
+    "code": "md.php:661-760",
+    "returns": "absolute realpath on success, null on any violation",
+    "layers": [
+      {"n": 1, "check": "non-empty and strlen <= MAX_FILE_PARAM_LENGTH (255)"},
+      {"n": 2, "check": "no NUL byte"},
+      {"n": 3, "check": "no ASCII control characters [\\x00-\\x1F\\x7F]"},
+      {"n": 4, "check": "urldecode() then re-test for control characters (defeats %2e%2e%2f)"},
+      {"n": 5, "check": "reject absolute paths: leading '/', '\\\\', '//', or /^[A-Za-z]:/ (Windows drive)"},
+      {"n": 6, "check": "normalize '\\\\' and '//' to '/', reject '..' as a whole segment or trailing"},
+      {"n": 7, "check": "strict character whitelist /^[A-Za-z0-9._\\-/ \\p{L}\\p{M}\\p{Pd}]+$/u (v2.16.0 added \\p{L}\\p{M}+space, v2.18.0 added \\p{Pd} dashes)"},
+      {"n": 8, "check": "directory depth (count of '/') <= MAX_SCAN_DEPTH (3)"},
+      {"n": 9, "check": "must end with '.md' (case-insensitive, mb_strtolower)"},
+      {"n": 10, "check": "realpath(baseDir) must exist and be a directory"},
+      {"n": 11, "check": "realpath(base + normalized) must resolve (target must exist)"},
+      {"n": 12, "check": "containment: realpath must equal base or start with base + DIRECTORY_SEPARATOR"},
+      {"n": 13, "check": "must be a regular file (is_file) — not a directory or device"},
+      {"n": 14, "check": "post-symlink extension re-check: pathinfo(realpath, EXTENSION) === 'md'"}
+    ],
+    "duplicated_in": ["mdvDirSegments() md.php:801", "updater.php dirSegments() :748"],
+    "note": "all three copies must stay byte-identical (stated in v2.16.0/v2.18.0 changelogs)"
+  },
+  "empirical_tests": {
+    "environment": "PHP 8.2.34 CLI, php -S 127.0.0.1:8123, Debian bookworm sandbox",
+    "test:viewer_mode": {"result": "HTTP 200, 47119 bytes; <title>Hello, World</title> derived from first H1; <meta name=description> from first paragraph/heading"},
+    "test:ini_autocreate": {"result": ".md.ini written by md.php on first request with DISABLE_UPLOAD=true, DISABLE_CLIPBOARD=false, DISABLE_SAVE_CLIPBOARD_TO_FILE=true, ALLOW_UPDATE=false, ALLOW_RESTORE=false, ALLOW_CREATE_INDEX_PHP_LINK=true, BROWSE_DIR commented out. NO API_KEY line."},
+    "test:api_key_autogen": {"result": "first GET updater.php appended 'API_KEY = mdv_' + 48 hex chars to .md.ini"},
+    "test:browser_mode": {"result": "HTTP 200 when no md.md exists; renders <table id=\"files-table\" data-sort-default=\"modified\" data-sort-dir-default=\"desc\">, <input id=\"files-search\">, Upload .md + Preview Clipboard buttons, 'Markdown Files Browser' heading"},
+    "test:machine_api": {"status_action": "200 + JSON with per-file path/status/version, counts{tracked:11,present:11,missing:0}, ini{api_key:'configured',allow_update:false,allow_restore:false,api_install:true}", "conflicts_action": "200 + JSON, step status 'warn', detail '11 entries: 0 ok, 11 exists, 0 same_name_elsewhere'", "wrong_key": "403", "install_via_GET": "405", "unknown_action": "400", "no_key_no_format": "403"},
+    "test:flags_off_by_default": {"updater.php?update=true": "403 (3015-byte HTML error page)", "updater.php?restore=latest": "403 (2899-byte HTML error page)", "updater.php (landing)": "200, 6896 bytes, X-Content-Type-Options: nosniff"},
+    "test:path_traversal": {
+      "denied_200_with_banner": ["../etc/passwd", "..%2f..%2fetc%2fpasswd", "/etc/passwd", "docs/../md.php", "....//....//etc/passwd", "%2e%2e%2f%2e%2e%2fetc%2fpasswd", "..\\..\\windows\\win.ini", "docs/sub/../../../../etc/hosts", "md.md%00.png", ".md.ini", "../.md.ini", "260-char name"],
+      "allowed": ["docs/sub/nested.md", "docs/root.md", "README.md"],
+      "denial_behaviour": "HTTP 200 + file-browser page carrying the message 'Access denied or file not found. Path validation failed.' (NOT a 4xx)",
+      "note": "README.md is readable via ?file= because it is a .md file inside the browse root — the whitelist is extension-based, not allowlist-of-documents"
+    },
+    "test:download_endpoint": {"url": "md.php?file=<p>&download=1", "headers": ["Content-Type: application/octet-stream", "X-Content-Type-Options: nosniff", "Content-Disposition: attachment; filename=\"<ascii>\"; filename*=UTF-8''<rawurlencoded>", "Cache-Control: no-store", "Content-Length"], "on_validation_failure": "HTTP 404 text/plain 'File not found.'", "code": "md.php:585-621"},
+    "test:double_slash_redirect": {"code": "md.php:322-328", "behaviour": "GET whose REQUEST_URI contains '//' is 301-redirected once to the clean path; POST is left alone"},
+    "test:xss": {
+      "method": "POST md_preview=1&content=<payload> (clipboard preview path, md.php:3484)",
+      "passed_through_unescaped": {
+        "<script>alert(1)</script>": "emitted verbatim inside <article class=\"markdown-body\">",
+        "<img src=x onerror=alert(1)>": "emitted verbatim",
+        "<details open ontoggle=alert(1)>x</details>": "emitted verbatim",
+        "<a href=\"x\" onclick=\"alert(1)\">y</a>": "emitted verbatim",
+        "<svg onload=alert(1)>": "emitted verbatim",
+        "<iframe src=\"javascript:alert(1)\"></iframe>": "emitted verbatim",
+        "<T> (bare angle-bracket token)": "emitted verbatim — becomes an unknown HTML element",
+        "[click][r] with [r]: javascript:alert(1)": "emitted as <a href=\"javascript:alert(1)\"> — reference-link URLs are NOT protocol-filtered",
+        "<!-- c -->": "HTML comment passes through"
+      },
+      "correctly_blocked": {
+        "[click](javascript:alert(1))": "left as literal text — inline-link regexes only match '#...' or 'https?://...'",
+        "[click](java%0ascript:alert(1))": "left as literal text",
+        "[click](data:text/html,...)": "left as literal text",
+        "![x](y.png\" onerror=\"alert(1))": "attribute injection escaped by e() → &quot;"
+      },
+      "root_cause": "md.php:2041-2049 captures every /<\\/?[a-zA-Z][^>]*>/u match into $rawHtmlSpans and md.php:2176-2183 restores them raw after escaping; step 8 (reference links, md.php:2105-2124) applies e() for attribute-quoting but never filters the URL scheme",
+      "spec_context": "GFM 0.29 §6.11 'Disallowed Raw HTML (extension)' exists precisely for this; GitHub additionally sanitizes after conversion. MD.Viewer implements neither.",
+      "mitigations_available": ["Content-Security-Policy header (none is sent today — verified: response headers contain no CSP)", "reverse-proxy sanitization", "restrict who can write .md files", "set DISABLE_UPLOAD=true (default)", "run on an isolated origin"]
+    },
+    "test:headers_absent": ["Content-Security-Policy", "X-Frame-Options", "Strict-Transport-Security", "Referrer-Policy", "Permissions-Policy"],
+    "test:headers_present_viewer": ["Content-type: text/html; charset=UTF-8", "X-Powered-By: PHP/8.2.34 (server default, not set by app)"],
+    "test:mermaid_config": {"code": "js/md/md.js:292", "securityLevel": "loose", "htmlLabels": true, "startOnLoad": false, "suppressErrorRendering": true, "note": "securityLevel 'loose' permits HTML labels inside diagrams — an additional script-capable surface for untrusted diagram source"}
+  },
+  "rendering_pipeline": {
+    "order_in_viewer_mode": ["normalizeMarkdown()", "extractMeta() → title/description", "strip first H1 from body (regex, md.php:3568)", "parseSources()", "parseGlossaryTables() (if GLOSSARY_TOOLTIPS)", "removeSourcesSection()", "collectHeadings()", "assignHeadingNumbers() (if AUTO_NUMBERING)", "renderTOC() (if AUTO_TOC)", "renderMarkdown()", "applyGlossaryTooltipsToHtml()", "renderSourcesList() (if AUTO_FOOTNOTES_LINKS)"],
+    "code": "md.php:3560-3585 (viewer), md.php:3489-3505 (clipboard POST)",
+    "inline_pipeline_steps": ["1 protect inline code spans (\\uFFFC placeholders)", "2 protect image spans (\\uFFFD) — FEATURE_IMAGES", "2a mask emphasis chars inside link URLs (\\uFFF9)", "2b protect raw HTML tags (\\uFFFE) — UNESCAPED ON RESTORE", "3 e() HTML-escape the remainder", "4 **strong** __strong__ *em* _em_ ~~del~~ ==mark==", "5 ~sub~ ^sup^ (FEATURE_SUBSUP)", "6 emoji shortcodes (FEATURE_EMOJI)", "7 internal/anchor links", "8 absolute https? links (target=_blank rel=noopener noreferrer)", "9 reference links [t][k] (FEATURE_REF_LINKS)", "10 source citations [[1,2,3]]", "11 footnote refs [^id] (FEATURE_FOOTNOTES)", "12 restore images", "11b restore raw HTML", "13 restore code spans / universal patterns", "14 unmask \\uFFF9 chars"],
+    "code_inline": "md.php:1956-2220 inlineMarkdown()",
+    "placeholder_codepoints": {"\\uFFFC": "inline code span", "\\uFFFD": "image span", "\\uFFFE": "raw HTML span", "\\uFFF9": "masked emphasis char in URL"}
+  },
+  "modes": {
+    "viewer": "a Markdown file resolved (either ?file= or <scriptname>.md) → styled document page",
+    "browser": "no Markdown file resolved → recursive file browser (scanMarkdownFiles, MAX_SCAN_DEPTH=3, MAX_FILES_SCAN=10000)",
+    "clipboard_preview": "POST md_preview=1 + content → rendered page, nothing written to disk, 403 when DISABLE_CLIPBOARD, 400 when content empty, 2 MB cap",
+    "raw_download": "GET ?file=...&download=1 → octet-stream attachment, 404 on validation failure",
+    "naming_rule": "md.php looks for md.md; docs.php looks for docs.md — pathinfo(__FILE__, PATHINFO_FILENAME).'.md'",
+    "html_lang": "<html lang=\"ru\"> is hardcoded in the template (md.php render_page) — worth noting for i18n"
+  },
+  "updater": {
+    "source_of_truth": "const RAW_BASE = 'https://raw.githubusercontent.com/paulmann/MD.Viewer/refs/heads/main' (updater.php:110)",
+    "tracked_files_count": 11,
+    "detection": ["conditional GET with stored ETag (If-None-Match) → 304 = unchanged", "on 200 compare SHA-256 of payload vs local file → identical = 'current'", "version string ' * Version: X.Y.Z' extracted from first 1000 bytes"],
+    "state_store": "md.backup/.state/{slug}.json containing {etag, hash, updated_at}",
+    "atomic_write": "tempnam($dir,'.upd_') + file_put_contents(LOCK_EX) + rename() + chmod 0644",
+    "backup": "md.backup/{localVersion}/{relative-path} before replacement; README.md and LICENSE are downloaded but never backed up",
+    "rollback": "md.backup/{version}-pre-restore/ created before a restore, so rollback-of-rollback is possible",
+    "curl_options": {"CURLOPT_SSL_VERIFYPEER": true, "CURLOPT_SSL_VERIFYHOST": "NOT SET — relies on libcurl default (2 since 7.10.0, 2002)", "CURLOPT_FOLLOWLOCATION": true, "CURLOPT_TIMEOUT": 15, "CURLOPT_ENCODING": "''", "User-Agent": "MDViewer-RawUpdater/3.0 (+https://Deynekin.com)"},
+    "integrity_model": "SHA-256 is a CHANGE DETECTOR, not an authenticity check. There is no signature, no pinned commit SHA, no checksum manifest. Trust = TLS + GitHub availability of refs/heads/main + repo write access.",
+    "pre_write_guard": "writeBlockedReason() — a file at a tracked path that lacks a ' * Version: X.Y.Z' marker in its first 1000 bytes is 'not an MD.Viewer file' and is skipped unless force=1",
+    "two_phase_bootstrap": "Phase 1 updates updater.php itself; if changed, redirects to ?_phase=2 (preserving &force=true) so the NEW updater does the rest",
+    "force_flag": "&force=true / force=1 skips ETag+SHA cache, always re-downloads, and permits overwriting foreign files",
+    "browser_modes": {"?update=true": "requires ALLOW_UPDATE", "?restore=latest": "requires ALLOW_RESTORE; scans md.backup/, sorts by version_compare desc, picks newest", "?restore=X.Y.Z": "exact version; validated against [a-zA-Z0-9.\\-]"},
+    "legacy_ajax_actions": ["check (GET)", "apply (POST)", "restore (POST)", "backups (GET)", "version (GET)", "index_status", "index_create", "index_remove", "upload_md", "save_clipboard"],
+    "same_origin_guard": "v3.11.0 sameOriginViolation()/requireSameOrigin() — state-changing entry points reject a request whose Origin (and Referer) names another host with 403; read-only checks Origin alone; host comparison is port-insensitive; clients sending neither header are unaffected",
+    "machine_api": {"auth": "API_KEY via ?api_key=, POST api_key, or X-API-Key header", "actions": {"status": "GET, no network I/O", "conflicts": "GET, never writes", "install": "POST only, optional dry_run=1 / force=1"}, "http_codes": {"200": "completed (per-file failures keep ok:false in body)", "400": "unknown action", "403": "unauthorized / api_key_unavailable", "405": "install without POST"}, "envelope_keys": ["ok", "action", "version", "steps", "files", "conflicts", "errors", "updater_version", "installed", "counts", "ini"], "files_status_values": ["present", "missing", "updated", "created", "force-updated", "current", "skipped", "would_write", "error"], "steps_status_values": ["ok", "dry-run", "skip", "warn", "error"], "conflicts_status_values": ["ok", "exists", "same_name_elsewhere"]},
+    "index_php_link": "manages a hard link named index.php; refuses with 409 if a regular index.php already exists (v3.1.1)",
+    "upload_rules": ".md extension only, no slashes, no null bytes; destination = per-directory dir param, else BROWSE_DIR, else uploads.md/ next to md.php; 403 when DISABLE_UPLOAD; 400 on traversal/absolute/NUL dir",
+    "directories_created": ["js/md/", "css/md/"] ,
+    "created_dir_mode": "0755",
+    "never_does": ["delete local files absent from remote", "silently overwrite foreign files"]
+  },
+  "settings_panel": {
+    "sections": ["viewer preferences (theme, width, font size, line height, TOC, numbering)", "header toolbar visibility per device type", "PHP-side feature toggles with hover tooltips (applied via cookies on next load)", "update check/apply (only when ALLOW_UPDATE)", "backup list + restore (only when ALLOW_RESTORE)", "index.php hard-link management (only when ALLOW_CREATE_INDEX_PHP_LINK)"],
+    "persistence": "browser cookies (mdv_feat_* for feature toggles) + localStorage/sessionStorage client-side; NO server-side per-user state, NO database",
+    "clipboard_preview_storage": "source text kept in sessionStorage while the preview is open"
+  },
+  "mdv_config_payload": {
+    "emitted_as": "window.MDV_CONFIG = {...} in <head>",
+    "observed_keys": ["cookieAccept", "autoNumbering", "autoToc", "autoFootnotes", "doubleLineBreaks", "cypherPatterns", "universalPatterns", "featureImages", "featureRefLinks", "featureTaskLists", "featureFootnotes", "featureSubSup", "featureEmoji", "splitTitleByColon", "glossaryTooltips", "featureDownloadIcon", "featureDownloadButton", "featureCopyButton", "paragraphBreak", "disableUpload", "disableClipboard", "disableSaveClipboardToFile", "currentDir", "allowUpdate", "allowRestore", "allowCreateIndexPhpLink", "updaterUrl"],
+    "quirk": "the assignment appears TWICE in the emitted HTML — first a minimal {cookieAccept:false}, then the full object. Harmless but redundant.",
+    "source": "test:viewer_mode output inspection"
+  },
+  "glossary_tooltips": {
+    "implementation": "js/md/tooltips.js + css/md/tooltips.css; server-side parseGlossaryTables() (md.php:2626) + applyGlossaryTooltipsToHtml() (md.php:2724) + expandGlossaryAliases() (md.php:2588)",
+    "source_format": "Markdown tables in the document are parsed into a term → definition map; variant spellings resolve to one definition",
+    "dom_markers": "class=\"glossary-term\" data-gterm=\"tbl-1:0:2\"; table cells get data-gc and id=\"gd-tbl-1-0-1\"",
+    "ux": "hover tooltip, touch support, 2-second grace period, viewport-aware positioning",
+    "reused_by": "Settings-panel feature tooltips use the same .g-tooltip bubble and positioning engine"
+  }
+}
+```
