@@ -1,0 +1,37 @@
+{
+  "_comment": [
+    "Phrases that must NOT appear anywhere in the wiki. qa_wiki.py --ban turns every",
+    "match into an ERROR.",
+    "",
+    "This is the single most valuable QA artefact in the kit, and the reason is",
+    "specific: in the reference run the subject's own README claimed 'syntax",
+    "highlighting' and 'nested lists'. Neither existed. Both claims were plausible,",
+    "both were easy to transcribe, and both would have shipped as falsehoods.",
+    "",
+    "Fill this in at the END of Phase 1, from research/sources.md section D",
+    "('claims deliberately not made'). Format: {phrase: why it is banned}.",
+    "Matching is case-insensitive substring, so write the shortest phrase that is",
+    "unambiguously wrong — an affirmative claim, not a word that also appears in",
+    "the correction ('syntax highlighting' would ban the sentence that says there",
+    "is none; 'syntax-highlighted code blocks are produced' would not).",
+    "",
+    "Prefer banning the AFFIRMATIVE form of the claim."
+  ],
+
+  "_template_delete_me": {
+    "supports nested lists": "verified false — indented children render as literal text",
+    "fully CommonMark compliant": "not conformant; entities/escapes/autolinks/indented code all diverge",
+    "updates are signed": "no signature, no pinned commit — SHA-256 is a change detector only",
+    "PHP 8.3 is enforced": "documented, not enforced — there is no version_compare() guard",
+    "built-in syntax highlighting": "no highlighter is loaded anywhere in the repository",
+    "ships an .htaccess": "no .htaccess exists in the repository; any sample is a recommendation"
+  },
+
+  "_notes": [
+    "Also worth banning, once you have verified them absent:",
+    "  * 'production-ready' / 'enterprise-grade' — unfalsifiable marketing",
+    "  * 'simply' / 'just' before a step that is not simple",
+    "  * any specific performance number you did not measure",
+    "  * any version number you did not read from the source"
+  ]
+}

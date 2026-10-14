@@ -1,0 +1,145 @@
+name: selftest
+
+# The whole point of this kit is "verify, don't assume" — including the tools
+# themselves. This workflow runs the same checks a user should run locally.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Python syntax
+        run: |
+          fail=0
+          for f in $(find . -name '*.py' -not -path './.git/*'); do
+            python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$f" \
+              && echo "  ok   $f" || { echo "  FAIL $f"; fail=1; }
+          done
+          exit $fail
+
+      - name: Shell syntax
+        run: |
+          fail=0
+          for f in $(find . -name '*.sh' -not -path './.git/*'); do
+            bash -n "$f" && echo "  ok   $f" || { echo "  FAIL $f"; fail=1; }
+          done
+          exit $fail
+
+      - name: Every tracked .json parses (not just templates/)
+        # This exists because examples/research/facts.json shipped as a Markdown
+        # document with a ```json fence inside, while four docs described it as the
+        # "machine-readable fact base". A templates/-only glob never caught it.
+        run: |
+          fail=0
+          while IFS= read -r -d '' f; do
+            if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f" 2>/dev/null; then
+              echo "  ok   $f"
+            else
+              echo "  FAIL $f is not valid JSON"; fail=1
+            fi
+          done < <(git ls-files -z '*.json')
+          exit $fail
+
+      - name: --help works on every tool
+        run: |
+          fail=0
+          for f in scan/repo_scan.py qa/qa_wiki.py scaffold/new_page.py \
+                   probe/webapp_probe.py lib/req.py lib/serve.py; do
+            python3 "$f" --help >/dev/null 2>&1 \
+              && echo "  ok   $f" || { echo "  FAIL $f"; fail=1; }
+          done
+          exit $fail
+
+      - name: QA self-test (the checker must be able to fail)
+        run: python3 qa/qa_wiki.py --self-test
+
+      - name: Scaffold round-trip (scaffold output must be QA-clean)
+        run: |
+          set -e
+          for pages in "Home,Getting Started,Glossary" \
+                       "Home,Architecture,Security Hardening Guide,FAQ,Troubleshooting" \
+                       "Home"; do
+            rm -rf /tmp/rt
+            python3 scaffold/new_page.py /tmp/rt --init --project RT --pages "$pages" >/dev/null
+            python3 qa/qa_wiki.py /tmp/rt --strict
+            echo "  ok   [$pages]"
+          done
+
+      - name: --ban and --terms work against their own templates
+        run: |
+          set -e
+          mkdir -p /tmp/fix
+          cat > "/tmp/fix/Ban Page.md" <<'EOF'
+          # Ban Page
+
+          Lead paragraph long enough to satisfy the lead-paragraph check.
+
+          ## Body
+
+          Set `opcache.save_comments = 1` in php.ini.
+
+          ## See also
+
+          - [[Ban Page]]
+          EOF
+          # 1. the shipped template has only meta keys: must warn, not error
+          python3 qa/qa_wiki.py /tmp/fix --ban templates/ban.json --strict
+          # 2. a real ban fires, and a meta key never does
+          cat > /tmp/fix/ban.json <<'EOF'
+          {"_comment": ["explanation"], "save_comments": "meta key must not become a phrase"}
+          EOF
+          python3 qa/qa_wiki.py /tmp/fix --ban /tmp/fix/ban.json --strict
+          # 3. the documented combination runs clean
+          python3 qa/qa_wiki.py /tmp/fix --ban templates/ban.json --terms templates/terms.json
+
+      - name: Every path referenced by SKILL.md and AGENTS.md exists
+        run: |
+          fail=0
+          for doc in SKILL.md AGENTS.md README.md; do
+            # markdown links to local files, and backticked tool paths
+            grep -oE '\(([a-z][a-z0-9_./-]*\.(py|sh|md|json|tmpl))\)' "$doc" 2>/dev/null \
+              | tr -d '()' | sort -u | while read -r f; do
+                [ -e "$f" ] || { echo "  MISSING $doc -> $f"; exit 9; }
+              done || fail=1
+            grep -oE '`(setup|scan|lib|probe|qa|scaffold|publish|templates)/[A-Za-z0-9_./-]+`' "$doc" 2>/dev/null \
+              | tr -d '`' | sort -u | while read -r f; do
+                [ -e "$f" ] || { echo "  MISSING $doc -> $f"; exit 9; }
+              done || fail=1
+          done
+          [ $fail -eq 0 ] || { echo "documented paths missing (a .gitignore rule may be dropping files)"; exit 1; }
+          echo "  all documented paths exist"
+
+      - name: No tracked file is excluded by .gitignore
+        run: |
+          fail=0
+          for f in $(git ls-files); do
+            if git check-ignore -q "$f"; then
+              echo "  IGNORED: $f  <- $(git check-ignore -v "$f" | cut -f1)"
+              fail=1
+            fi
+          done
+          [ $fail -eq 0 ] || { echo "a tracked file matches .gitignore — a copy-based publish would silently drop it"; exit 1; }
+          echo "  ok: 0 of $(git ls-files | wc -l) tracked files are ignored"
+
+      - name: Audit the examples wiki (must stay at zero errors)
+        run: |
+          if [ -d examples/wiki ]; then
+            python3 qa/qa_wiki.py examples/wiki --strict
+          else
+            echo "  (no examples/wiki — skipped)"
+          fi

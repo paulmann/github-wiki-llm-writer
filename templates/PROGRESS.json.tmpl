@@ -1,0 +1,38 @@
+{
+  "project": "{{PROJECT}} GitHub Wiki",
+  "subject_repo": "{{REPO_URL}}",
+  "subject_commit": "{{COMMIT}}",
+  "phase": "PHASE 1 — research",
+  "updated": "{{DATE}}",
+  "target_dir": "workspace/wiki/OWNER.REPO.wiki/",
+
+  "style_contract": {
+    "language": "English",
+    "format": "GitHub Flavored Markdown",
+    "filenames": "SPACES, not hyphens — 'Security Hardening Guide.md' (GitHub maps spaces to hyphenated URLs and resolves [[Page Name]] against that)",
+    "link_convention": "[[Page Name]] and [[Page Name#anchor|label]]; anchors are GitHub slugs, never hand-written",
+    "every_page": ["single H1", "lead paragraph under H1", "Contents block", "logical H2/H3", "'## See also' at the bottom"],
+    "devices": ["GitHub Alerts (NOTE/TIP/IMPORTANT/WARNING/CAUTION)", "mermaid diagrams", "tables for params/configs/errors/matrices", "fenced code with language + copy-pasteable commands + sample output"],
+    "tone": "factual; no marketing filler; emoji only as data (a documented character mapping or a verbatim UI glyph)",
+    "hard_rule": "no claim that is not traced to a source line or reproduced by execution"
+  },
+
+  "do_not_claim": {
+    "_comment": "Fill from research/sources.md section D. Enforced by qa_wiki.py --ban templates/ban.json",
+    "example — syntax highlighting": "no highlighter is loaded anywhere in the repository",
+    "example — nested lists": "verified false: indented children render as literal text"
+  },
+
+  "pages": [
+    {"file": "Home.md", "title": "Home", "group": "Overview", "status": "todo", "words": 0,
+     "notes": "badges, 1-2 para summary, key features, 5-minute quick start, navigation index"}
+  ],
+
+  "qa": {"link_errors": null, "anchor_errors": null, "fence_errors": null,
+         "shell_blocks_checked": null, "alerts": null, "mermaid": null,
+         "wiki_links": null, "fluff_phrases": null},
+
+  "delivery": {"canonical_dir": null, "prepared_commit": null, "bundle": null,
+               "bundle_verified": null, "instructions": "workspace/wiki/PUBLISH.md",
+               "report": "workspace/wiki/REPORT.md", "push_status": "not attempted"}
+}
