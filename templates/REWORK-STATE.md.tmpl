@@ -1,0 +1,62 @@
+# REWORK-STATE — {{PROJECT}} wiki run
+
+**Updated:** {{TIMESTAMP}}  ·  **Phase:** {{PHASE}}  ·  **Subject:** {{REPO_URL}} @ `{{COMMIT}}`
+
+> This file is the recovery artefact. In the reference run a hard session
+> interruption in the middle of Phase 4 cost **zero** work, because this file and
+> `research/` were current. Resuming took one `ls` and one `head`.
+
+## How to resume (read first)
+
+1. `ls workspace/` and `head -40 workspace/STATE.md` — orient.
+2. Read the **Log** section below, newest last: it says what was actually done.
+3. Re-run the environment rebuild commands (next section) — the sandbox is empty.
+4. Re-run the last verification command in the log to confirm where you stand.
+5. Continue from **Next action**. Do not re-derive anything already recorded.
+
+## Environment rebuild (exact commands)
+
+```bash
+bash tools/setup/bootstrap.sh
+# subject runtime, if it needs a newer PHP than the distro ships (PITFALLS B10):
+#   see the sury recipe there
+git clone {{REPO_URL}} workspace/repo/SUBJECT
+# restore any staged instance:
+python3 -c "import sys; sys.path.insert(0,'tools/lib'); from serve import ServedApp; ..."
+```
+
+## Key paths
+
+| What | Where |
+|---|---|
+| Subject clone | `workspace/repo/SUBJECT` |
+| Research (recovery-critical) | `workspace/research/{summary,architecture,domain-notes}.md`, `facts.json`, `sources.md`, `scan.json`, `probe.{json,md}` |
+| Wiki deliverable | `workspace/wiki/{{OWNER}}.{{REPO}}.wiki/` |
+| Progress + QA results | `workspace/PROGRESS.json` |
+| Publish artefacts | `workspace/wiki/publish/`, `*.bundle`, `workspace/wiki/PUBLISH.md` |
+
+## Sandbox quirks learned (append as you hit them)
+
+- {{QUIRK}}
+- Absolute paths inside bash heredocs can be mangled — `cd` first or pass via env var (PITFALLS B4).
+- Files outside the workspace root do not persist (PITFALLS A3).
+- A busy port makes a new dev server die silently while tests hit the old one (PITFALLS A1).
+
+## Checklist
+
+- [ ] P1 research: scan → probe → research files written (incl. `sources.md` §D)
+- [ ] P2 architecture: page tree in `PROGRESS.json`, `ban.json`, `terms.json`
+- [ ] P3 writing: scaffold → pages filled → `qa/fix_toc.py` on every rewritten page
+- [ ] P4 QA: `qa_wiki.py --self-test` → `--strict` to 0 errors → re-run documented commands
+- [ ] Snapshot at every phase boundary: `bash setup/snapshot.sh workspace "phase N done"`
+- [ ] Delivery: `publish/publish.sh`, `REPORT.md`, `PUBLISH.md`
+
+## Next action
+
+{{NEXT}}
+
+## Log (append-only)
+
+| When | What | Evidence |
+|---|---|---|
+| {{TIMESTAMP}} | run started | — |

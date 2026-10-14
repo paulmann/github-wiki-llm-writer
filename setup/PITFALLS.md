@@ -362,3 +362,61 @@ being created.
 checker over scaffold output for at least three different page lists (including
 the degenerate one-page case) before shipping the template.
 
+---
+
+## E. Field-report additions (from the MD.Scribe run)
+
+### B9. Composer needs unzip (or ext-zip); npm needs node — install them FIRST
+`composer install` without unzip/zip does not say "install unzip": it prints a
+package-download warning and then the FULL `install` usage screen, which reads
+exactly like "you passed a wrong flag". Cost: one debug cycle.
+Fix: `apt-get install -y unzip` (and php-zip when the subject uses ZipArchive).
+
+### B10. The distro's default runtime may be BELOW the subject's floor
+Debian bookworm ships PHP 8.2; subjects requiring 8.3+ (json_validate, typed
+class constants) will not boot at all — every probe then measures a corpse.
+Check `composer.json → require.php` (repo_scan prints it) against `php -v`
+BEFORE probing. Recipe for newer PHP on bookworm:
+    curl -sSLo /usr/share/keyrings/deb.sury.org-php.gpg https://packages.sury.org/php/apt.gpg
+    echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ bookworm main" \
+      > /etc/apt/sources.list.d/sury-php.list
+    apt-get update && apt-get install -y php8.3-cli php8.3-mbstring php8.3-xml php8.3-zip
+    update-alternatives --set php /usr/bin/php8.3
+
+### B11. Long-running probe scripts can lose visibility of parts of the workspace FS
+Observed: `open(ABS_PATH,'w')` → FileNotFoundError while `parent.is_dir()`
+prints False IN-PROCESS, yet the shell sees and writes the same directory fine.
+Happened after a series of spawn/kill cycles (setsid + killpg) inside one
+script; minimal repro outside the script worked. Cause unknown (sandbox FS
+layer). Fix: write evidence defensively —
+    try: write(primary)
+    except OSError: write(fallback_next_to_script); print diagnosis
+and `cp` into place from the shell afterwards. Never let the last line of a
+long probe be the only write of its evidence.
+
+### D8. Bulk regex rewrites of pages are destructive — scope them or lose work
+A TOC regenerator that replaced "from `## Contents` to the next `---`/`## `"
+ate a page's lead paragraph, badges and an alert block, because that page had
+no `---` after the TOC. The loss was silent: QA still passed the skeleton.
+Rules: replace ONLY the block you named (anchored list-block regex), assert a
+word-count sanity bound after every edit, support `--bak`, and ship a
+`--self-test` whose fixture IS the worst case that already bit you once.
+
+### C8. ban/avoid/fluff matching is substring-based — quotes and negations fire
+Real hits from one run: `GPG` inside "There is no GPG…"; `double-gated` inside
+a refutation of the subject's docs; the subject's VERBATIM 404 message
+containing an avoided synonym; an avoid pattern matching a GitHub anchor slug
+(`#mdscribe-extensions` — the slugger drops the dot) and a probe filename;
+fluff `unlock` in "delete the line to unlock a hard lock" (terminology!) and
+`magic` in "PK magic bytes".
+Working rules: (1) never quote a banned phrase, even to refute it — paraphrase
+("the docs present restore as gated by both flag and authentication"); (2)
+verbatim subject strings that collide with avoid-patterns win: delete/narrow the
+pattern and log it in terms.json `_tuning_log` (this is D6 working as intended);
+(3) read EVERY hit in context before "fixing" the prose.
+
+### Workspace snapshots (recovery discipline)
+After each phase boundary run `setup/snapshot.sh workspace "phase N done"`.
+Bulk editors must write `.bak`. If git is unavailable, copy `workspace/wiki/`
+and `workspace/research/` to `workspace/.backup-<ts>/` before any destructive
+operation. A truncated session or a bad regex must cost minutes, not hours.

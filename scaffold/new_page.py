@@ -25,6 +25,8 @@ NAMING RULE (do not get this wrong)
 from __future__ import annotations
 
 import argparse
+import collections
+import json
 import re
 from datetime import date
 from pathlib import Path
@@ -187,6 +189,10 @@ def main() -> int:
     ap.add_argument("--version", default="0.0.0")
     ap.add_argument("--license", default="MIT")
     ap.add_argument("--commit", default="HEAD")
+    ap.add_argument("--groups", help='explicit sidebar grouping: '
+                    '"Overview:Home,Getting Started|Install:Installation,Configuration"')
+    ap.add_argument("--progress", help="PROGRESS.json to take the page tree and "
+                    "pages[].group from — preferred over --groups and over the heuristic")
     ap.add_argument("--sections", default="Overview,Details,Examples",
                     help="comma-separated H2 sections for a single page")
     ap.add_argument("--force", action="store_true")
@@ -195,6 +201,27 @@ def main() -> int:
     W = Path(a.wiki_dir)
     W.mkdir(parents=True, exist_ok=True)
     pages = [p.strip() for p in (a.pages or "").split(",") if p.strip()]
+    prog_groups = None
+    if a.progress and Path(a.progress).exists():
+        try:
+            prog = json.loads(Path(a.progress).read_text(encoding="utf-8"))
+            g = collections.OrderedDict()
+            if not pages:
+                pages = [(pg.get("title") or Path(str(pg.get("file", ""))).stem)
+                         for pg in prog.get("pages", [])]
+                pages = [x for x in pages if x]
+            for pg in prog.get("pages", []):
+                title = pg.get("title") or Path(str(pg.get("file", ""))).stem
+                if not title:
+                    continue
+                g.setdefault((pg.get("group") or "Reference").strip(), [])
+                if title not in g[(pg.get("group") or "Reference").strip()]:
+                    g[(pg.get("group") or "Reference").strip()].append(title)
+            if g:
+                prog_groups = g
+                print(f"  grouping from {a.progress}: {list(g)}")
+        except Exception as e:
+            print(f"  could not read --progress ({e}); falling back")
 
     def write(name: str, content: str) -> None:
         p = W / name
@@ -219,6 +246,48 @@ def main() -> int:
             badges="![License](https://img.shields.io/badge/License-{lic}-blue.svg)".format(lic=a.license),
             summary="**One or two paragraphs: what the software is and what problem it solves.**\n"
                     "Facts only. No marketing adjectives — qa_wiki.py rejects them."))
+        explicit = None
+        if prog_groups:
+            explicit = prog_groups
+        elif a.groups:
+            explicit = collections.OrderedDict()
+            for chunk in a.groups.split("|"):
+                if ":" not in chunk:
+                    continue
+                label, _, names = chunk.partition(":")
+                explicit[label.strip()] = [n.strip() for n in names.split(",") if n.strip()]
+            print(f"  grouping from --groups: {list(explicit)}")
+        if explicit is not None:
+            listed = {x for v in explicit.values() for x in v}
+            # A page named in a grouping but absent from the page list must still be
+            # created, otherwise the sidebar links to a page that does not exist and
+            # QA (correctly) reports dead links. Union, preserving order.
+            for extra_name in listed:
+                if extra_name not in all_pages:
+                    all_pages.append(extra_name)
+            extra = [p for p in all_pages if p != "Home" and p not in listed]
+            if extra:
+                explicit.setdefault("Reference", []).extend(extra)
+            parts = []
+            for label, names in explicit.items():
+                if not names:
+                    continue
+                lines = [f"**[[{x}]]**" if x == "Home" else f"[[{x}]]" for x in names]
+                parts.append(f"### {label}\n\n" + "\n".join(lines))
+            write("_Sidebar.md", "\n\n".join(parts)
+                  + f"\n\n---\n\n`{a.version}` · {a.license}\n")
+            for p in all_pages:
+                if p == "Home":
+                    continue
+                write(f"{slug(p)}.md", PAGE_TMPL.format(
+                    title=p,
+                    lead="One or two sentences: what this page covers and when a reader needs it.",
+                    contents=contents_for(["Overview", "Details", "Examples", "See also"]),
+                    body="\n\n".join(f"## {s}\n\nTODO" for s in ["Overview", "Details", "Examples"]),
+                    seealso=seealso_for(p, all_pages)))
+            print(f"\nScaffolded {len(all_pages) + 2} files in {W} (explicit grouping)")
+            print("Next: fill the TODOs, then run  python3 qa/qa_wiki.py " + str(W))
+            return 0
         groups = {"overview": [], "install": [], "usage": [], "operating": [], "reference": []}
         for p in all_pages:
             low = p.lower()

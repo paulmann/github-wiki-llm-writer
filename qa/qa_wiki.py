@@ -50,6 +50,99 @@ FLUFF = [
 ]
 EMOJI_RE = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF\uFE0F]")
 
+# ── context-aware matching for ban / avoid / fluff ───────────────────────────
+# Substring matching fires on text that is NOT an assertion by the author:
+# a negation ("There is no GPG verification"), a quote of the subject's own docs
+# being refuted, the subject's verbatim error strings, GitHub anchor slugs
+# (#mdscribe-extensions — the slugger drops the dot), filenames, and legitimate
+# domain terms ("unlock a hard lock", "PK magic bytes"). One field run produced
+# 10 such errors and zero real ones. These helpers remove the mechanical classes
+# and downgrade the judgement calls instead of asserting them.
+
+FILENAME_RE = re.compile(r"\S+\.(?:py|md|php|js|ts|jsx|tsx|json|sh|bash|css|ya?ml|toml|ini|tmpl|ps1)\b")
+NEGATION_RE = re.compile(
+    r"\b(no|not|never|neither|none|without|lacks?|missing|isn't|aren't|wasn't|weren't|"
+    r"doesn't|don't|didn't|cannot|can't|won't|false|myth|incorrect|wrong|"
+    r"claim(?:s|ed|ing)?|asserts?|asserted|alleged(?:ly)?|reportedly|purports?|"
+    r"supposedly|apparently|docs? (?:say|says|claim|state)|readme (?:say|says|claim|state))\b",
+    re.I)
+
+
+def scrub_line(line: str) -> str:
+    """Blank out spans where a substring hit is not an authorial claim.
+
+    Inline code and fenced interiors are already blanked by mask_code(); this adds
+    wiki-links, in-page anchor targets and filenames. Blanking (not deleting)
+    keeps character offsets aligned with the original line, so the reported
+    context excerpt stays accurate.
+    """
+    s = re.sub(r"\[\[[^\]]*\]\]", lambda m: " " * len(m.group(0)), line)
+    s = re.sub(r"\]\(#[^)]*\)", lambda m: " " * len(m.group(0)), s)
+    s = re.sub(FILENAME_RE, lambda m: " " * len(m.group(0)), s)
+    return s
+
+
+def scrubbed(text: str) -> str:
+    """Code-masked, link/anchor/filename-scrubbed view of a whole file."""
+    return "\n".join(scrub_line(l) for l in mask_code(text, True))
+
+
+def negated(view: str, start: int, window: int = 90) -> bool:
+    """True when a negation/hedging word appears shortly BEFORE the hit.
+
+    Deliberately a downgrade-to-warning, never a suppression: "no database" and
+    "uses a database" are different claims, and "there is no GPG verification" is
+    exactly the case that must still be readable by a human.
+    """
+    lo = max(0, start - window)
+    before = view[lo:start]
+    # a sentence boundary resets the scope: "…is fast. There is no GPG…" must not
+    # let the earlier clause hedge a later assertion.
+    for sep in (". ", "; ", "\n"):
+        if sep in before:
+            before = before.split(sep)[-1]
+    return bool(NEGATION_RE.search(before))
+
+
+def load_exemptions(doc, key: str = "exemptions") -> list:
+    """Read the exemptions list from a ban.json / terms.json document.
+
+    Shape: [{"phrase": "...", "file": "Troubleshooting.md"?, "quote": "verbatim
+    fragment"?, "reason": "..."}]. `file` and `quote` are optional narrowers; when
+    present both must match. Exemptions are reported as INFO, never silently
+    dropped, so they cannot quietly become a rubbish drawer.
+    """
+    if not isinstance(doc, dict):
+        return []
+    out = []
+    for e in doc.get(key) or []:
+        if isinstance(e, str):
+            out.append({"phrase": e, "reason": ""})
+        elif isinstance(e, dict) and e.get("phrase"):
+            out.append(e)
+    return out
+
+
+def match_exemption(exemptions, phrase: str, fname: str, line: str):
+    """Return the exemption reason when a hit is exempt, else None."""
+    pl = phrase.lower()
+    for e in exemptions:
+        if str(e.get("phrase", "")).lower() != pl:
+            continue
+        if e.get("file") and e["file"] != fname:
+            continue
+        if e.get("quote") and e["quote"].lower() not in line.lower():
+            continue
+        return str(e.get("reason", "")).strip() or "exempted"
+    return None
+
+
+def line_at(text: str, offset: int) -> str:
+    """The full line containing a match offset, for the context excerpt."""
+    i = text.rfind("\n", 0, offset) + 1
+    j = text.find("\n", offset)
+    return text[i:j if j != -1 else len(text)]
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Markdown structure helpers
@@ -245,6 +338,7 @@ def audit(wiki_dir: str, terms_file: str | None = None, ban_file: str | None = N
     stems = {p.stem for p in files}
     err: list[str] = []
     warn: list[str] = []
+    infos: list[str] = []
     stats: dict = {}
     anchors: dict[str, set[str]] = {}
     texts = {p.name: p.read_text(encoding="utf-8") for p in files}
@@ -252,6 +346,18 @@ def audit(wiki_dir: str, terms_file: str | None = None, ban_file: str | None = N
     # anchors first — other checks need them
     for name, text in texts.items():
         anchors[name] = anchors_of(text)
+
+    # One scrubbed view per page, reused by the fluff, ban and avoid passes.
+    scrub_views = {n: scrubbed(txt) for n, txt in texts.items()}
+    # Loaded up front: the fluff pass runs inside the per-page loop, which is
+    # above the ban/terms section, so a late assignment would never be seen.
+    fluff_exemptions: list = []
+    if ban_file:
+        try:
+            _bd = json.loads(Path(ban_file).read_text())
+            fluff_exemptions = load_exemptions(_bd, "fluff_exemptions") or load_exemptions(_bd)
+        except Exception:
+            pass
 
     wl_total = 0
     mmd_total = sh_total = py_total = 0
@@ -328,11 +434,19 @@ def audit(wiki_dir: str, terms_file: str | None = None, ban_file: str | None = N
                 elif path_part and not path_part.startswith("/"):
                     warn.append(f"{name}:{i} relative link {url!r} is not a wiki page")
 
-        # style: prose-only (code blanked)
+        # style: prose-only, with code / wiki-links / anchors / filenames blanked
         prose = re.sub(r"^>.*$", "", plain, flags=re.M)
         for pat in FLUFF:
             for m in re.finditer(pat, prose, re.I):
-                err.append(f"{name}: marketing filler {m.group(0)!r} — cut it")
+                hit = m.group(0)
+                ln = line_at(prose, m.start())
+                ex = match_exemption(fluff_exemptions, hit, name, ln)
+                if ex:
+                    infos.append(f"{name}: exempted filler {hit!r} — {ex}")
+                    continue
+                err.append(f"{name}: marketing filler {hit!r} — cut it, or record an "
+                           f"exemption if it is domain terminology (e.g. \"unlock a hard lock\", "
+                           f"\"PK magic bytes\")")
         em = EMOJI_RE.findall(prose)
         if em:
             warn.append(f"{name}: {len(em)} emoji outside code blocks — confirm each is data "
@@ -366,7 +480,17 @@ def audit(wiki_dir: str, terms_file: str | None = None, ban_file: str | None = N
         # this filter those three keys were themselves treated as banned phrases and
         # fired on any substring ("_comment" matched inside `opcache.save_comments`),
         # while the real example bans nested under _template_delete_me were never checked.
-        items = ([(k, v) for k, v in bans.items() if not str(k).startswith("_")]
+        #
+        # The same class of bug applies to the non-underscore STRUCTURAL keys: the
+        # template carries "exemptions" and "fluff_exemptions", whose values are
+        # lists of dicts. Treating those as phrases banned the literal words
+        # "exemptions" / "fluff_exemptions" (firing on any wiki that explains the
+        # feature) and printed a raw list as their "reason". A value is a phrase only
+        # when it is not one of these structural keys and not a list.
+        STRUCTURAL_KEYS = {"exemptions", "fluff_exemptions"}
+        items = ([(k, v) for k, v in bans.items()
+                  if not str(k).startswith("_") and str(k) not in STRUCTURAL_KEYS
+                  and not isinstance(v, list)]
                  if isinstance(bans, dict) else [(b, "") for b in bans])
         norm: list[tuple[str, str]] = []
         for phrase, why in items:
@@ -388,10 +512,23 @@ def audit(wiki_dir: str, terms_file: str | None = None, ban_file: str | None = N
             warn.append(f"--ban {Path(ban_file).name}: no active phrases (every top-level key "
                         f"starts with '_'). Promote the examples out of `_template_delete_me` "
                         f"into top-level keys: {{\"<phrase>\": \"<why>\"}}.")
+        ban_exemptions = load_exemptions(bans)
+        fluff_exemptions = load_exemptions(bans, "fluff_exemptions") or ban_exemptions
         for phrase, reason in norm:
             for p in files:
-                for _m in re.finditer(re.escape(phrase), texts[p.name], re.I):
-                    err.append(f"{p.name}: banned claim {phrase!r}" + (f" — {reason}" if reason else ""))
+                view = scrub_views[p.name]
+                for _m in re.finditer(re.escape(phrase), view, re.I):
+                    ln = line_at(view, _m.start())
+                    ex = match_exemption(ban_exemptions, phrase, p.name, ln)
+                    if ex:
+                        infos.append(f"{p.name}: exempted banned phrase {phrase!r} — {ex}")
+                        continue
+                    if negated(view, _m.start()):
+                        warn.append(f"{p.name}: possible NEGATED mention of banned phrase "
+                                    f"{phrase!r} — review, do not assume it is a claim: …{ln.strip()[:110]}…")
+                        continue
+                    err.append(f"{p.name}: banned claim {phrase!r}" + (f" — {reason}" if reason else "")
+                               + f"  […{ln.strip()[:110]}…]")
     if terms_file:
         tj = json.loads(Path(terms_file).read_text())
         canon, banned = tj.get("canonical", {}), tj.get("avoid", {})
@@ -400,11 +537,20 @@ def audit(wiki_dir: str, terms_file: str | None = None, ban_file: str | None = N
             low = texts[p.name].lower()
             for term, pat in canon.items():
                 counts[term] += len(re.findall(pat, low))
+        avoid_exemptions = load_exemptions(tj)
         for term, pat in banned.items():
             for p in files:
-                for m in re.finditer(pat, texts[p.name], re.I):
-                    ctx = texts[p.name][max(0, m.start() - 60):m.end() + 60].replace("\n", " ")
-                    err.append(f"{p.name}: avoided term {term!r} → …{ctx}…")
+                view = scrub_views[p.name]
+                for m in re.finditer(pat, view, re.I):
+                    ln = line_at(view, m.start())
+                    ex = match_exemption(avoid_exemptions, term, p.name, ln)
+                    if ex:
+                        infos.append(f"{p.name}: exempted avoided term {term!r} — {ex}")
+                        continue
+                    ctx = view[max(0, m.start() - 60):m.end() + 60].replace("\n", " ")
+                    err.append(f"{p.name}: avoided term {term!r} → …{ctx}…"
+                               f"  (verbatim subject strings and filenames win: narrow the pattern"
+                               f" and log it in _tuning_log, or record an exemption)")
         stats["terminology"] = dict(counts.most_common())
 
     stats.update({
@@ -416,7 +562,7 @@ def audit(wiki_dir: str, terms_file: str | None = None, ban_file: str | None = N
         "mermaid": mmd_total, "shell_blocks_checked": sh_total, "python_blocks_checked": py_total,
         "wiki_links": wl_total, "per_page": per_page,
     })
-    result = {"errors": err, "warnings": warn, "stats": stats}
+    result = {"errors": err, "warnings": warn, "infos": infos, "stats": stats}
     if json_out:
         Path(json_out).parent.mkdir(parents=True, exist_ok=True)
         Path(json_out).write_text(json.dumps(result, indent=1, ensure_ascii=False))
@@ -537,6 +683,59 @@ def self_test() -> int:
         finally:
             shutil.rmtree(bd, ignore_errors=True)
 
+        # ── ban/terms context handling (regression test for §A6 false positives) ──
+        cd = Path(tempfile.mkdtemp(prefix="qa-selftest-ctx-"))
+        try:
+            (cd / "Ctx Page.md").write_text(
+                "# Ctx Page\n\n"
+                "Lead paragraph long enough to satisfy the lead-paragraph check.\n\n"
+                "## Body\n\n"
+                "There is no GPG or sigstore verification of any download.\n\n"
+                "The subject uses a database for sessions.\n\n"
+                "Jump to [the matrix](#mdscribe-extensions) and see `MDScribe` in code.\n\n"
+                "The 404 body reads: refused by the security validator.\n\n"
+                "Delete the line to unlock a hard lock.\n\n"
+                "## See also\n\n- [[Ctx Page]]\n")
+            (cd / "_Sidebar.md").write_text("**[[Ctx Page]]**\n")
+            (cd / "ban.json").write_text(json.dumps({
+                "_comment": ["meta must never be treated as a phrase"],
+                "GPG": "no signature verification exists",
+                "uses a database": "the subject is stateless",
+                "fluff_exemptions": [{"phrase": "unlock", "reason": "domain term: unlock a hard lock"}],
+            }))
+            (cd / "terms.json").write_text(json.dumps({
+                "canonical": {"hard lock": "hard[- ]lock"},
+                "avoid": {
+                    "MDScribe (slug/filename must not fire)": "MDScribe",
+                    "security validator (verbatim subject string)": "security validator",
+                },
+                "exemptions": [{"phrase": "security validator (verbatim subject string)",
+                                "quote": "refused by the security validator",
+                                "reason": "verbatim 404 string of the subject"}],
+            }))
+            rc = audit(str(cd), terms_file=str(cd / "terms.json"), ban_file=str(cd / "ban.json"))
+            ce, cw, ci = " ".join(rc["errors"]), " ".join(rc["warnings"]), " ".join(rc.get("infos") or [])
+            expect.update({
+                "negation downgrades a ban to WARNING": ("no GPG" not in ce) and ("NEGATED" in cw),
+                "real banned claim still ERRORS": "uses a database" in ce,
+                "anchor slug does not fire avoid": not any(
+                    "avoided term" in e and "mdscribe" in e.lower() for e in rc["errors"]),
+                "inline code does not fire avoid": not any(
+                    "avoided term" in e and "MDScribe" in e for e in rc["errors"]),
+                "exempted avoid term is INFO": "exempted avoided term" in ci,
+                "exempted fluff is INFO": "exempted filler" in ci,
+                "meta key _comment never fires": "_comment" not in ce,
+            })
+            for k in list(expect)[-7:]:
+                v = expect[k]; ok = ok and v
+                print(f"  {'PASS' if v else 'FAIL'}  {k}")
+            if rc["errors"]:
+                print(f"\n  ctx fixture errors ({len(rc['errors'])}):")
+                for e in rc["errors"]:
+                    print("    ", e[:150])
+        finally:
+            shutil.rmtree(cd, ignore_errors=True)
+
         if not ok:
             print("\nSELF-TEST FAILED — the checker is blind to something. Fix it before trusting a clean run.")
             return 1
@@ -588,6 +787,11 @@ def main() -> int:
             print("  !", x)
         if len(r["warnings"]) > 40:
             print(f"  … and {len(r['warnings']) - 40} more")
+        inf = r.get("infos") or []
+        if inf:
+            print(f'\nEXEMPTED ({len(inf)}) — recorded, not enforced:')
+            for x in inf[:25]:
+                print("  ·", x)
 
     if a.strict and r["errors"]:
         return 1

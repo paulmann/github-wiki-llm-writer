@@ -66,6 +66,25 @@
     "",
     "`canonical` entries only COUNT usage — they never fail — so they are safe to",
     "leave broad. Use them to spot a term you defined in the glossary but never",
-    "actually used, or one used 90 times alongside a synonym used twice."
+    "actually used, or one used 90 times alongside a synonym used twice.",
+    "",
+    "AVOID-PATTERN MATCHING IS NOW CONTEXT-AWARE: hits inside fenced code,",
+    "inline code, [[wiki-links]], ](#anchor) targets and filenames are",
+    "ignored, which removes the slug/filename/verbatim-quote class of false",
+    "positive. Add an \"exemptions\" list for anything still legitimate; it is",
+    "reported as INFO. A verbatim string belonging to the SUBJECT always",
+    "wins over terminology purity: narrow or delete the pattern and log it",
+    "in _tuning_log."
+  ],
+  "exemptions": [
+    {
+      "phrase": "<the avoid key>",
+      "file": "Troubleshooting.md",
+      "quote": "<verbatim fragment>",
+      "reason": "verbatim 404 string of the subject"
+    }
+  ],
+  "_tuning_log": [
+    "Shipped patterns were narrowed after a field run: 'base director' and 'config file' fired on correct prose; 'MDScribe' fired on a GitHub anchor slug (#mdscribe-extensions — the slugger drops the dot) and on a probe filename. Both classes are now suppressed mechanically by context-aware matching, so the patterns can stay broad."
   ]
 }

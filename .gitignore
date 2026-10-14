@@ -28,3 +28,16 @@ venv/
 probe-app-*/
 .e2e/
 .scratch/
+
+# Stray evidence output from an accidental harness run
+qa/verify-commands.json
+verify-commands.json
+
+# A run's own working space. Never part of the kit: it holds the subject's
+# uploads, a scratch copy of the kit, and bundles. A `v3.2/` directory of 184
+# files / 4.4 MB sat here untracked-but-not-ignored, so a `git add -A` would have
+# published it. Matched at any depth, and versioned run directories by pattern.
+v3.*/
+/workspace-fallback/
+/uploads/
+/incoming/

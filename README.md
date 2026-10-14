@@ -100,6 +100,14 @@ flowchart LR
 | 3 Writing | `scaffold/new_page.py` | the wiki pages |
 | 4 QA + delivery | `qa/qa_wiki.py`, `publish/publish.sh` | 0-error audit, commit, verified bundle, `REPORT.md` |
 
+| [`qa/fix_toc.py`](qa/fix_toc.py) | 3 | Rebuild a page's `## Contents` with GitHub slugs — block-scoped, `--bak`, word-count guard, `--self-test` reproducing the accident that ate a page |
+| [`lib/session.py`](lib/session.py) | 1 | `SessionClient` (cookie jar, no auto-redirect) + `csrf_from_html` — probes stateful/admin surfaces that `req.py` cannot |
+| [`qa/verify_commands.py`](qa/verify_commands.py) | 4 | Worked Phase-4 harness: fresh clone, then every documented command, with evidence JSON |
+| [`lib/evidence.py`](lib/evidence.py) | 1,4 | `write_evidence()` retries into a fallback dir instead of losing probe evidence (PITFALLS B11) |
+| [`setup/check_runtime.py`](setup/check_runtime.py) | 1 | Subject's declared runtime floor vs installed; exit 2 on mismatch |
+| [`examples/run2-mdscribe/`](examples/run2-mdscribe/) | — | Second reference run: 1571-line battery, two layouts, stateful admin flow |
+| [`setup/snapshot.sh`](setup/snapshot.sh) | all | Git-snapshot the workspace at phase boundaries, so a bad bulk edit costs minutes not hours |
+| [`templates/REWORK-STATE.md.tmpl`](templates/REWORK-STATE.md.tmpl) | all | Recovery file: how to resume, environment rebuild, quirks, append-only log |
 Full detail in [`AGENTS.md`](AGENTS.md).
 
 ---
@@ -111,7 +119,7 @@ No dependencies beyond Python 3.8+ and `bash`.
 | Tool | What it does |
 |---|---|
 | [`setup/bootstrap.sh`](setup/bootstrap.sh) | `apt-get update` (the step everyone forgets), installs git/curl/jq/php, prints capabilities and network egress |
-| [`setup/PITFALLS.md`](setup/PITFALLS.md) | 26 traps, ordered by time wasted. Read before writing any probe |
+| [`setup/PITFALLS.md`](setup/PITFALLS.md) | 31 traps, ordered by time wasted. Read before writing any probe |
 | [`scan/repo_scan.py`](scan/repo_scan.py) | Whole-repo inventory → JSON + a two-minute brief |
 | [`lib/req.py`](lib/req.py) | stdlib HTTP client returning `(status, headers, body)` for **every** outcome including 4xx/5xx |
 | [`lib/serve.py`](lib/serve.py) | `ServedApp`: stages a clean copy on a **verified-free** port and kills its own process group |

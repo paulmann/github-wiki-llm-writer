@@ -57,16 +57,45 @@ jobs:
 
       - name: --help works on every tool
         run: |
+          # Keep this list in step with the kit. It previously named six tools and
+          # silently ignored the six added in 1.1.0/1.2.0, so a new tool could ship
+          # with a broken CLI and no CI signal at all.
           fail=0
-          for f in scan/repo_scan.py qa/qa_wiki.py scaffold/new_page.py \
-                   probe/webapp_probe.py lib/req.py lib/serve.py; do
+          listed="scan/repo_scan.py qa/qa_wiki.py qa/fix_toc.py qa/verify_commands.py \
+                  scaffold/new_page.py probe/webapp_probe.py \
+                  lib/req.py lib/serve.py lib/evidence.py lib/session.py \
+                  setup/check_runtime.py"
+          for f in $listed; do
             python3 "$f" --help >/dev/null 2>&1 \
               && echo "  ok   $f" || { echo "  FAIL $f"; fail=1; }
+          done
+          # every .py in the kit must be either exercised above or explicitly excused
+          for f in $(git ls-files '*.py'); do
+            case " $listed " in
+              *" $f "*) ;;
+              *) echo "  NOTE $f is not in the --help list — add it or say why";;
+            esac
           done
           exit $fail
 
       - name: QA self-test (the checker must be able to fail)
         run: python3 qa/qa_wiki.py --self-test
+
+      - name: Self-tests of the tools added in 1.1.0/1.2.0
+        run: |
+          # None of these were in CI when they landed, which is how a vacuous
+          # assertion and a broken fallback path survived a green build.
+          fail=0
+          python3 qa/fix_toc.py --self-test \
+            && echo "  ok   qa/fix_toc.py" || { echo "  FAIL qa/fix_toc.py"; fail=1; }
+          python3 lib/evidence.py --self-test \
+            && echo "  ok   lib/evidence.py" || { echo "  FAIL lib/evidence.py"; fail=1; }
+          # session.py's self-test needs a live PHP server, so only its CLI is
+          # checked here; the live run is a Phase-1 task, not a CI task.
+          python3 lib/session.py --help >/dev/null 2>&1 \
+            && echo "  ok   lib/session.py (CLI; live run is Phase 1)" \
+            || { echo "  FAIL lib/session.py"; fail=1; }
+          exit $fail
 
       - name: Scaffold round-trip (scaffold output must be QA-clean)
         run: |
@@ -82,10 +111,16 @@ jobs:
 
       - name: --ban and --terms work against their own templates
         run: |
-          # NOTE: command 2 below MUST find an error, so `set -e` is deliberately
-          # absent — with it, the step aborted on the intentional failure and
-          # never reached assertion 3, making the check look broken while
-          # proving nothing. Expectations are asserted explicitly instead.
+          # `set -e` is deliberately absent: command 2 below MUST find a banned
+          # phrase, so a bare non-zero exit would abort the step *before* asserting
+          # anything. Expectations are stated explicitly instead.
+          #
+          # The fixture matters as much as the assertions. qa_wiki.py blanks fenced
+          # and inline code before matching (that is how the field-report false
+          # positives were fixed), so a phrase placed only inside backticks can
+          # never fire. Here `uses a database` is in PROSE and must fire, while
+          # `save_comments` appears solely inside inline code and must stay silent —
+          # both halves are asserted, so the step cannot pass vacuously.
           fail=0
           rm -rf /tmp/fix && mkdir -p /tmp/fix
           cat > "/tmp/fix/Ban Page.md" <<'EOF'
@@ -95,50 +130,63 @@ jobs:
 
           ## Body
 
-          Set `opcache.save_comments = 1` in php.ini.
+          The subject uses a database for sessions, which the docs never mention.
+
+          By contrast the real setting is `opcache.save_comments`, quoted from source.
 
           ## See also
 
           - [[Ban Page]]
           EOF
 
-          # 1. the shipped template has only meta keys: must warn, not error
+          # 1. the shipped template has only structural/meta keys: warn, do not fail
           if python3 qa/qa_wiki.py /tmp/fix --ban templates/ban.json --strict >/tmp/fix/out1 2>&1; then
-            echo "  ok   template ban warns without failing"
+            echo "  ok   structural-only template warns without failing"
           else
-            echo "  FAIL template ban returned non-zero"; cat /tmp/fix/out1; fail=1
+            echo "  FAIL structural-only template returned non-zero"; cat /tmp/fix/out1; fail=1
           fi
           if grep -q 'no active phrases' /tmp/fix/out1; then
             echo "  ok   the empty-template warning is emitted"
           else
-            echo "  FAIL empty-template warning missing (silent no-op ban list)"; fail=1
+            echo "  FAIL empty-template warning missing (a silent no-op ban list)"; fail=1
           fi
 
-          # 2. a real ban fires, and a meta key never does
+          # 2. a real prose ban fires; meta keys and blanked code never do
           cat > /tmp/fix/ban.json <<'EOF'
-          {"_comment": ["explanation"], "save_comments": "meta key must not become a phrase"}
+          {"_comment": ["documentation, not a phrase"],
+           "uses a database": "the subject is stateless",
+           "save_comments": "occurs only inside inline code in the fixture"}
           EOF
-          # `|| rc=$?` matters: the runner launches this step under `bash -e`, so a
-          # bare command that is SUPPOSED to exit non-zero would abort the step here.
           rc=0
           python3 qa/qa_wiki.py /tmp/fix --ban /tmp/fix/ban.json --strict >/tmp/fix/out2 2>&1 || rc=$?
           if [ "$rc" -ne 1 ]; then
-            echo "  FAIL a real ban must exit 1 under --strict, got $rc"; fail=1
+            echo "  FAIL a real prose ban must exit 1 under --strict, got $rc"; cat /tmp/fix/out2; fail=1
           else
-            echo "  ok   a real ban exits non-zero under --strict"
+            echo "  ok   a real prose ban exits non-zero under --strict"
           fi
-          if grep -q "banned claim 'save_comments'" /tmp/fix/out2; then
+          if grep -q "banned claim 'uses a database'" /tmp/fix/out2; then
             echo "  ok   the real banned phrase fired"
           else
             echo "  FAIL the real banned phrase did not fire"; fail=1
           fi
           # A meta key reported AS a phrase reads `banned claim '_comment'`.
-          # Note: a bare grep for `_comment` would also match `save_comments`,
-          # which is why the pattern anchors on the report prefix.
+          # A bare grep for `_comment` would also match `save_comments`, so the
+          # pattern anchors on the report prefix.
           if grep -qE "banned claim '_" /tmp/fix/out2; then
             echo "  FAIL a meta key was reported as a banned phrase"; fail=1
           else
             echo "  ok   meta keys were not treated as phrases"
+          fi
+          if grep -q "banned claim 'save_comments'" /tmp/fix/out2; then
+            echo "  FAIL a phrase occurring only inside inline code fired"; fail=1
+          else
+            echo "  ok   a phrase occurring only inside inline code did not fire"
+          fi
+          # The template's own structural keys must never be threats.
+          if grep -qE "banned claim '(exemptions|fluff_exemptions)'" /tmp/fix/out1; then
+            echo "  FAIL the template bans its own structural keys"; fail=1
+          else
+            echo "  ok   structural keys are not treated as phrases"
           fi
 
           # 3. the documented combination runs clean
@@ -154,10 +202,10 @@ jobs:
       - name: Every path referenced by SKILL.md and AGENTS.md exists
         run: |
           # `grep` exits 1 when a pattern merely does not occur in a document, and
-          # under `bash -eo pipefail` that aborted the step even though nothing was
-          # missing — AGENTS.md has no markdown-style local links at all. Candidates
-          # are collected with that exit code neutralised, and existence is checked
-          # here rather than inside a pipeline subshell.
+          # under `bash -eo pipefail` (what `shell: bash` means) that aborted this
+          # step even though nothing was missing. Candidates are collected with
+          # that exit code neutralised, and existence is checked in the shell
+          # rather than inside a subshell whose exit code the loop discards.
           fail=0
           for doc in SKILL.md AGENTS.md README.md; do
             md_links=$(grep -oE '\(([a-z][a-z0-9_./-]*\.(py|sh|md|json|tmpl))\)' "$doc" 2>/dev/null | tr -d '()' | sort -u) || true
@@ -184,6 +232,25 @@ jobs:
           done
           [ $fail -eq 0 ] || { echo "a tracked file matches .gitignore — a copy-based publish would silently drop it"; exit 1; }
           echo "  ok: 0 of $(git ls-files | wc -l) tracked files are ignored"
+
+      - name: No run workspace is staged into the kit
+        run: |
+          # A run's working directory (uploads, a scratch copy of the kit, bundles)
+          # must never be published. Caught because a `v3.2/` directory holding 184
+          # files and 4.4 MB sat untracked-but-not-ignored at the repository root: a
+          # `git add -A` would have pushed all of it into the public kit.
+          fail=0
+          for d in v3.2 workspace uploads incoming .publish; do
+            if [ -e "$d" ] && ! git check-ignore -q "$d"; then
+              echo "  FAIL $d/ exists and is NOT ignored"; fail=1
+            fi
+          done
+          # belt and braces: nothing staged may look like a run artefact
+          if git ls-files | grep -qE '^(v3\.[0-9]+|workspace|uploads)/'; then
+            echo "  FAIL run-workspace paths are tracked:"; git ls-files | grep -E '^(v3\.[0-9]+|workspace|uploads)/' | head; fail=1
+          fi
+          [ $fail -eq 0 ] || { echo "a run workspace would be published with the kit"; exit 1; }
+          echo "  ok: no run-workspace directory is tracked or stageable"
 
       - name: Audit the examples wiki (must stay at zero errors)
         run: |

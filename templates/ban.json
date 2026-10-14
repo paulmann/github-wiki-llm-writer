@@ -15,9 +15,28 @@
     "the correction ('syntax highlighting' would ban the sentence that says there",
     "is none; 'syntax-highlighted code blocks are produced' would not).",
     "",
-    "Prefer banning the AFFIRMATIVE form of the claim."
+    "Prefer banning the AFFIRMATIVE form of the claim.",
+    "",
+    "EXEMPTIONS AND NEGATIONS (added after a field run produced 10 false",
+    "positives and zero real ones):",
+    "  * Matching runs against a SCRUBBED view of each page: fenced code,",
+    "    inline code, [[wiki-links]], ](#anchor) targets and filenames are",
+    "    blanked first, so a slug or a verbatim subject string cannot fire.",
+    "  * A hit preceded within ~90 characters (same sentence) by a negation",
+    "    or hedging word -- no, not, never, without, lacks, false, myth,",
+    "    claims, asserts, allegedly, reportedly, 'the docs say' -- is",
+    "    downgraded to a WARNING, never suppressed. 'There is no GPG",
+    "    verification' must stay visible to a human.",
+    "  * Add an \"exemptions\" list for hits that are legitimate and would",
+    "    otherwise force you to mangle accurate prose. Exemptions are",
+    "    reported as INFO, so they stay visible and cannot become a",
+    "    rubbish drawer.",
+    "",
+    "If refuting a documentation claim requires quoting it, PARAPHRASE the",
+    "quote (\"the docs present restore as gated by both flag and",
+    "authentication\") -- substring matching cannot tell a refutation from",
+    "an assertion."
   ],
-
   "_template_delete_me": {
     "supports nested lists": "verified false — indented children render as literal text",
     "fully CommonMark compliant": "not conformant; entities/escapes/autolinks/indented code all diverge",
@@ -26,12 +45,29 @@
     "built-in syntax highlighting": "no highlighter is loaded anywhere in the repository",
     "ships an .htaccess": "no .htaccess exists in the repository; any sample is a recommendation"
   },
-
   "_notes": [
     "Also worth banning, once you have verified them absent:",
     "  * 'production-ready' / 'enterprise-grade' — unfalsifiable marketing",
     "  * 'simply' / 'just' before a step that is not simple",
     "  * any specific performance number you did not measure",
     "  * any version number you did not read from the source"
+  ],
+  "exemptions": [
+    {
+      "phrase": "<the banned phrase>",
+      "file": "<Page Name.md>",
+      "quote": "<verbatim fragment that must appear on the same line>",
+      "reason": "<why this hit is legitimate — e.g. verbatim error string of the subject>"
+    }
+  ],
+  "fluff_exemptions": [
+    {
+      "phrase": "unlock",
+      "reason": "domain terminology: 'delete the line to unlock a hard lock'"
+    },
+    {
+      "phrase": "magic",
+      "reason": "standard term: 'PK magic bytes'"
+    }
   ]
 }

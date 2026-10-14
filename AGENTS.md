@@ -248,6 +248,14 @@ what you reasoned from source rather than observed).
 | `probe/webapp_probe.py` | 1 | Declarative batteries: modes, traversal (20 payloads), injection (26), flags, upload matrix, API status codes, headers, disk side-effects → JSON + Markdown evidence | yes |
 | `scaffold/new_page.py` | 3 | Wiki skeleton or a single page, QA-clean by construction | yes |
 | `qa/qa_wiki.py` | 4 | The full audit, `--self-test`, `--strict`, `--json`, `--terms`, `--ban` | yes |
+| [`qa/fix_toc.py`](qa/fix_toc.py) | 3 | Rebuild a page's `## Contents` with GitHub slugs — block-scoped, `--bak`, word-count guard, `--self-test` reproducing the accident that ate a page |
+| [`lib/session.py`](lib/session.py) | 1 | `SessionClient` (cookie jar, no auto-redirect) + `csrf_from_html` — probes stateful/admin surfaces that `req.py` cannot |
+| [`qa/verify_commands.py`](qa/verify_commands.py) | 4 | Worked Phase-4 harness: fresh clone, then every documented command, with evidence JSON |
+| [`lib/evidence.py`](lib/evidence.py) | 1,4 | `write_evidence()` retries into a fallback dir instead of losing probe evidence (PITFALLS B11) |
+| [`setup/check_runtime.py`](setup/check_runtime.py) | 1 | Subject's declared runtime floor vs installed; exit 2 on mismatch |
+| [`examples/run2-mdscribe/`](examples/run2-mdscribe/) | — | Second reference run: 1571-line battery, two layouts, stateful admin flow |
+| [`setup/snapshot.sh`](setup/snapshot.sh) | all | Git-snapshot the workspace at phase boundaries, so a bad bulk edit costs minutes not hours |
+| [`templates/REWORK-STATE.md.tmpl`](templates/REWORK-STATE.md.tmpl) | all | Recovery file: how to resume, environment rebuild, quirks, append-only log |
 | `publish/publish.sh` | 4 | QA gate → clone → commit → verified bundle → instructions | yes |
 | `templates/*` | 2 | `terms.json`, `ban.json`, `STATE.md.tmpl`, `PROGRESS.json.tmpl` | — |
 
@@ -283,6 +291,72 @@ is why these tools now exist.
 
 Total in the reference run: 22 files, 73 013 words, 154 alerts, 27 mermaid
 diagrams, 1 687 table rows, 341 wiki-links, 0 QA errors.
+
+---
+
+## Multi-layout subjects and stateful surfaces
+
+Two patterns a field run proved necessary. Both are easy to get wrong in a way
+that produces **silently wrong results**.
+
+### Never trust a 200 without a body marker
+
+A subject with a front controller answers `200` for almost any path, because the
+router falls through to the home page. In the reference run the first
+"successful" `GET /md.php` was exactly that — a correct status code and a
+meaningless result. Assert on a **body marker**, not on the status:
+
+```python
+def check(name, resp, marker=None, status=None):
+    ok = (status is None or resp.status == status) \
+         and (marker is None or marker in resp.text)
+```
+
+### Two deployment layouts = two staged instances in one run
+
+A subject may ship more than one layout (for example docroot at `public/` with a
+router, *and* docroot at the repository root for compatibility shims). Some
+endpoints are then physically unreachable in one layout. `ServedApp` supports
+running several instances side by side; the `webapp_probe.py` CLI assumes one
+`--entry`, so write a driver:
+
+```python
+with ServedApp(repo, copy=['public','src','vendor'],
+               serve_cmd='php -S {host}:{port} -t {root}/public router.php') as A, \
+     ServedApp(repo, copy=['md.php','updater.php','src','vendor'],
+               serve_cmd='php -S {host}:{port} -t {root}') as B:
+    ...   # probe A's contract and B's contract separately
+```
+
+`webapp_probe.py` also takes `--serve-cmd` for the single-instance case.
+
+### Ordered, session-bearing flows
+
+Batteries are declarative and order-independent; an admin flow is not
+(setup → login → token from the dashboard → authenticated actions → logout). Use
+`lib/session.py`:
+
+```python
+from session import SessionClient, csrf_from_html
+c = SessionClient(A.base_url)
+home = c.get("/")
+tok  = csrf_from_html(home.text)          # six patterns; add extra_patterns as needed
+r    = c.post_form("/login", {"user": "admin", "pass": "x"}, token=tok)
+assert r.status == 302, r.status          # 302 is part of the contract — no auto-redirect
+r    = c.post_form("/admin/action", {...}, token=c.csrf or tok)
+```
+
+Two traps worth memorising: a CSRF token is often printed in **several different
+shapes** on different pages (one field name missed and an entire admin branch
+fails as a cascade of 403s), and a token placed in the **query string** is
+commonly rejected outright. `SessionClient` puts it in the body field *and* a
+header, never in the URL. See `examples/run2-mdscribe/`.
+
+### Evidence writes must not be the last thing that can fail
+
+Write every evidence file through `lib/evidence.write_evidence()`; it retries into
+`<kit>/workspace-fallback/` on `OSError` instead of losing a completed probe run
+(PITFALLS B11).
 
 ---
 

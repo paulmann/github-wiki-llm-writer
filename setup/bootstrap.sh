@@ -4,7 +4,15 @@
 # Idempotent: safe to run twice. Prints a capability report at the end so you
 # know exactly what you have before you start writing tools around it.
 #
-# Usage:  bash setup/bootstrap.sh [--with-node] [--with-php83]
+# Usage:  bash setup/bootstrap.sh [--with-node] [--with-php83] [--with-composer]
+#                               [--subject <repo-dir>]
+#
+#   --subject DIR   compare the subject's declared runtime floor (composer.json
+#                   require.php, package.json engines.node, go.mod) with the
+#                   installed runtime via setup/check_runtime.py, and EXIT NON-ZERO
+#                   on a mismatch. A distro default below the subject's floor means
+#                   the subject does not boot at all, so every probe would measure a
+#                   corpse (PITFALLS B10). Do not skip this.
 #
 # WHY EACH STEP EXISTS
 #   apt-get update  — a fresh sandbox has empty package lists; `apt-get install`
@@ -19,13 +27,18 @@
 #   git, jq, sqlite — cheap, frequently needed.
 set -uo pipefail
 
-WITH_NODE=0; WITH_PHP83=0
-for a in "$@"; do
-  case "$a" in
-    --with-node)  WITH_NODE=1 ;;
-    --with-php83) WITH_PHP83=1 ;;
-    -h|--help)    sed -n '2,20p' "$0"; exit 0 ;;
+WITH_NODE=0; WITH_PHP83=0; WITH_COMPOSER=0; SUBJECT=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --with-node)     WITH_NODE=1 ;;
+    --with-php83)    WITH_PHP83=1 ;;
+    --with-composer) WITH_COMPOSER=1 ;;
+    --subject)       SUBJECT=${2:?--subject needs a directory}; shift ;;
+    --subject=*)     SUBJECT=${1#*=} ;;
+    -h|--help)       sed -n '2,24p' "$0"; exit 0 ;;
+    *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
+  shift
 done
 
 log() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
@@ -59,6 +72,9 @@ install git git
 install curl curl
 install jq jq
 install python3 python3
+install unzip unzip          # composer install WITHOUT unzip prints a package-warning
+install zip zip              # plus the full usage screen, which reads exactly like
+                             # "you passed a wrong flag" (PITFALLS B9)
 install rg ripgrep || echo "  (ripgrep optional — grep works)"
 install shellcheck shellcheck || echo "  (shellcheck optional)"
 
@@ -106,6 +122,26 @@ except Exception as e: print(getattr(e,'code','ERR'))")
   fi
   printf '  %-38s %s\n' "$u" "$code"
 done
+
+if [ "$WITH_COMPOSER" = 1 ] && ! have composer; then
+  log "3b. Composer (PHP dependency manager)"
+  curl -sS https://getcomposer.org/installer -o /tmp/composer-setup.php \
+    && php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer --quiet \
+    && echo "  installed: composer $(composer --version 2>/dev/null | head -1 | cut -c1-40)" \
+    || echo "  FAILED — install from https://getcomposer.org/download/"
+fi
+
+if [ -n "$SUBJECT" ]; then
+  log "7. Runtime floor check against the subject (PITFALLS B10)"
+  python3 "$(dirname "$0")/check_runtime.py" "$SUBJECT"
+  rc=$?
+  if [ $rc -ne 0 ]; then
+    echo
+    echo "  ✗ refusing to continue: probing a subject the runtime cannot boot"
+    echo "    produces silently wrong findings. Fix the runtime, then re-run."
+    exit $rc
+  fi
+fi
 
 cat <<'EOF'
 
