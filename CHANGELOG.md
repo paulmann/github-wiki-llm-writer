@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.0.2 — make the two repair checks actually runnable
+
+Both defects are in the checks added by 1.0.1, not in the tools they guard: those
+checks were written and reasoned about but never executed as the workflow executes
+them, so CI could not have been green. Reproduced by running each step body under
+the shells the runner can use (`bash -e`, `sh -e`, `bash --noprofile --norc -e -o pipefail`).
+
+### Fixed
+
+- **The `--ban`/`--terms` step aborted on its own intentional failure.** It ran under
+  `set -e`, and its second command *must* find a banned phrase and therefore exit
+  non-zero; the step therefore died there and never reached assertion 3. `set -e` is
+  removed and every expectation is now asserted explicitly: the template warns without
+  failing, a real ban exits non-zero under `--strict`, that ban is actually the one
+  reported, no meta key is reported as a phrase, and the documented combination runs
+  clean. The command expected to fail is run as `cmd || rc=$?` so the runner's own
+  `-e` cannot abort the step either.
+- **The "documented paths exist" step failed whenever a document simply had no
+  matching link.** `grep` exits 1 when a pattern does not occur, and under
+  `bash -eo pipefail` that turned a clean repository into a red step — `AGENTS.md`
+  contains no markdown-style local links at all. Candidates are now gathered with the
+  exit code neutralised (`|| true`) and existence is checked in the shell rather than
+  inside pipeline subshells.
+
+### Verified
+
+- All ten steps exit 0 under `bash -e`, `sh -e` and `bash -o pipefail`.
+- Negative controls confirm the checks can still fail: deleting `lib/serve.py` fails
+  the path step, and corrupting `examples/research/facts.json` fails the JSON step.
+- The path step detects the 1.0.1 scenario end to end: publishing with a `lib/` rule
+  silently drops `lib/req.py` and `lib/serve.py`, and on the resulting checkout the
+  step reports `MISSING … -> lib/req.py` and exits 1.
+
 ## 1.0.1 — publication-readiness fixes
 
 Found by an independent pre-publication audit. Every item below was reproduced by

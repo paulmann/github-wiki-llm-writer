@@ -82,8 +82,12 @@ jobs:
 
       - name: --ban and --terms work against their own templates
         run: |
-          set -e
-          mkdir -p /tmp/fix
+          # NOTE: command 2 below MUST find an error, so `set -e` is deliberately
+          # absent — with it, the step aborted on the intentional failure and
+          # never reached assertion 3, making the check look broken while
+          # proving nothing. Expectations are asserted explicitly instead.
+          fail=0
+          rm -rf /tmp/fix && mkdir -p /tmp/fix
           cat > "/tmp/fix/Ban Page.md" <<'EOF'
           # Ban Page
 
@@ -97,31 +101,76 @@ jobs:
 
           - [[Ban Page]]
           EOF
+
           # 1. the shipped template has only meta keys: must warn, not error
-          python3 qa/qa_wiki.py /tmp/fix --ban templates/ban.json --strict
+          if python3 qa/qa_wiki.py /tmp/fix --ban templates/ban.json --strict >/tmp/fix/out1 2>&1; then
+            echo "  ok   template ban warns without failing"
+          else
+            echo "  FAIL template ban returned non-zero"; cat /tmp/fix/out1; fail=1
+          fi
+          if grep -q 'no active phrases' /tmp/fix/out1; then
+            echo "  ok   the empty-template warning is emitted"
+          else
+            echo "  FAIL empty-template warning missing (silent no-op ban list)"; fail=1
+          fi
+
           # 2. a real ban fires, and a meta key never does
           cat > /tmp/fix/ban.json <<'EOF'
           {"_comment": ["explanation"], "save_comments": "meta key must not become a phrase"}
           EOF
-          python3 qa/qa_wiki.py /tmp/fix --ban /tmp/fix/ban.json --strict
+          # `|| rc=$?` matters: the runner launches this step under `bash -e`, so a
+          # bare command that is SUPPOSED to exit non-zero would abort the step here.
+          rc=0
+          python3 qa/qa_wiki.py /tmp/fix --ban /tmp/fix/ban.json --strict >/tmp/fix/out2 2>&1 || rc=$?
+          if [ "$rc" -ne 1 ]; then
+            echo "  FAIL a real ban must exit 1 under --strict, got $rc"; fail=1
+          else
+            echo "  ok   a real ban exits non-zero under --strict"
+          fi
+          if grep -q "banned claim 'save_comments'" /tmp/fix/out2; then
+            echo "  ok   the real banned phrase fired"
+          else
+            echo "  FAIL the real banned phrase did not fire"; fail=1
+          fi
+          # A meta key reported AS a phrase reads `banned claim '_comment'`.
+          # Note: a bare grep for `_comment` would also match `save_comments`,
+          # which is why the pattern anchors on the report prefix.
+          if grep -qE "banned claim '_" /tmp/fix/out2; then
+            echo "  FAIL a meta key was reported as a banned phrase"; fail=1
+          else
+            echo "  ok   meta keys were not treated as phrases"
+          fi
+
           # 3. the documented combination runs clean
-          python3 qa/qa_wiki.py /tmp/fix --ban templates/ban.json --terms templates/terms.json
+          if python3 qa/qa_wiki.py /tmp/fix --ban templates/ban.json --terms templates/terms.json >/tmp/fix/out3 2>&1; then
+            echo "  ok   documented --ban + --terms combination runs clean"
+          else
+            echo "  FAIL documented --ban + --terms combination failed"; cat /tmp/fix/out3; fail=1
+          fi
+
+          if [ "$fail" -ne 0 ]; then echo "--ban/--terms expectations not met"; exit 1; fi
+          echo "  all --ban/--terms expectations hold"
 
       - name: Every path referenced by SKILL.md and AGENTS.md exists
         run: |
+          # `grep` exits 1 when a pattern merely does not occur in a document, and
+          # under `bash -eo pipefail` that aborted the step even though nothing was
+          # missing — AGENTS.md has no markdown-style local links at all. Candidates
+          # are collected with that exit code neutralised, and existence is checked
+          # here rather than inside a pipeline subshell.
           fail=0
           for doc in SKILL.md AGENTS.md README.md; do
-            # markdown links to local files, and backticked tool paths
-            grep -oE '\(([a-z][a-z0-9_./-]*\.(py|sh|md|json|tmpl))\)' "$doc" 2>/dev/null \
-              | tr -d '()' | sort -u | while read -r f; do
-                [ -e "$f" ] || { echo "  MISSING $doc -> $f"; exit 9; }
-              done || fail=1
-            grep -oE '`(setup|scan|lib|probe|qa|scaffold|publish|templates)/[A-Za-z0-9_./-]+`' "$doc" 2>/dev/null \
-              | tr -d '`' | sort -u | while read -r f; do
-                [ -e "$f" ] || { echo "  MISSING $doc -> $f"; exit 9; }
-              done || fail=1
+            md_links=$(grep -oE '\(([a-z][a-z0-9_./-]*\.(py|sh|md|json|tmpl))\)' "$doc" 2>/dev/null | tr -d '()' | sort -u) || true
+            backticked=$(grep -oE '`(setup|scan|lib|probe|qa|scaffold|publish|templates)/[A-Za-z0-9_./-]+`' "$doc" 2>/dev/null | tr -d '`' | sort -u) || true
+            for f in $md_links $backticked; do
+              [ -z "$f" ] && continue
+              if [ ! -e "$f" ]; then
+                echo "  MISSING $doc -> $f"
+                fail=1
+              fi
+            done
           done
-          [ $fail -eq 0 ] || { echo "documented paths missing (a .gitignore rule may be dropping files)"; exit 1; }
+          [ "$fail" -eq 0 ] || { echo "documented paths missing (a .gitignore rule may be dropping files)"; exit 1; }
           echo "  all documented paths exist"
 
       - name: No tracked file is excluded by .gitignore
