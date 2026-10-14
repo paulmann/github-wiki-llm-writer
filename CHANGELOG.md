@@ -56,6 +56,11 @@ by checks that were verified to fail when the defect is reintroduced.
   documented file, an unignored `v3.2/`, and a tool with a broken `--help` each make
   the corresponding step exit non-zero.
 - `README.md` said `PITFALLS.md` documents 26 traps; it documents 31. Corrected.
+- `lib/evidence.py --self-test` used `/proc/definitely-not-writable/...` as its
+  unwritable destination. That is unwritable on Linux but resolves to `C:\proc\…`
+  on Windows, which **is** creatable — so the self-test reported FAILED for every
+  Windows user while CI (ubuntu) stayed green. It now blocks on a path whose parent
+  is a regular file, which is unwritable on every platform, and passes on both.
 
 ## 1.2.0 — the remaining field-report items (P1-4…P1-7, P2-8…P2-11)
 

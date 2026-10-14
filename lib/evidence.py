@@ -117,8 +117,14 @@ if __name__ == "__main__":
             p2 = write_evidence(Path(td) / "b.md", "# hi\n", quiet=True)
             ok &= p2 is not None and p2.read_text() == "# hi\n"
             print(f"  [{'ok ' if p2 else 'FAIL'}] text write")
-        # an unwritable destination must fall back, not raise
-        p3 = write_evidence("/proc/definitely-not-writable/x.json", {"y": 2}, quiet=True)
+            # an unwritable destination must fall back, not raise.
+            # NOTE: this used `/proc/definitely-not-writable/...` originally. That is
+            # unwritable on Linux, but on Windows it resolves to C:\proc\..., which IS
+            # creatable — so the self-test failed on Windows while CI (ubuntu) stayed
+            # green. A path whose PARENT IS A FILE is unwritable on every platform.
+            blocker = Path(td) / "not-a-directory"
+            blocker.write_text("x", encoding="utf-8")
+            p3 = write_evidence(blocker / "x.json", {"y": 2}, quiet=True)
         ok &= p3 is not None and p3.parent == FALLBACK_DIR
         print(f"  [{'ok ' if p3 and p3.parent == FALLBACK_DIR else 'FAIL'}] fallback on unwritable dest")
         if p3:
