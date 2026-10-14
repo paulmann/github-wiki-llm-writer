@@ -40,12 +40,20 @@ jobs:
           done
           exit $fail
 
-      - name: JSON templates parse
+      - name: Every tracked .json parses (not just templates/)
+        # This exists because examples/research/facts.json shipped as a Markdown
+        # document with a ```json fence inside, while four docs described it as the
+        # "machine-readable fact base". A templates/-only glob never caught it.
         run: |
-          for f in templates/*.json; do
-            python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f" \
-              && echo "  ok   $f"
-          done
+          fail=0
+          while IFS= read -r -d '' f; do
+            if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f" 2>/dev/null; then
+              echo "  ok   $f"
+            else
+              echo "  FAIL $f is not valid JSON"; fail=1
+            fi
+          done < <(git ls-files -z '*.json')
+          exit $fail
 
       - name: --help works on every tool
         run: |

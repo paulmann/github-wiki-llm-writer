@@ -119,6 +119,7 @@ No dependencies beyond Python 3.8+ and `bash`.
 | [`scaffold/new_page.py`](scaffold/new_page.py) | Wiki skeleton or single page, QA-clean by construction |
 | [`qa/qa_wiki.py`](qa/qa_wiki.py) | The full audit, with `--self-test` |
 | [`publish/publish.sh`](publish/publish.sh) | QA gate → clone → commit → verified bundle → instructions |
+| [`PUBLISHING.md`](PUBLISHING.md) | Verified publishing flow: unrelated-histories merge, `.gitignore` traps, owner-identity commits |
 
 ### `scan/repo_scan.py`
 
