@@ -111,7 +111,7 @@ No dependencies beyond Python 3.8+ and `bash`.
 | Tool | What it does |
 |---|---|
 | [`setup/bootstrap.sh`](setup/bootstrap.sh) | `apt-get update` (the step everyone forgets), installs git/curl/jq/php, prints capabilities and network egress |
-| [`setup/PITFALLS.md`](setup/PITFALLS.md) | 27 traps, ordered by time wasted. Read before writing any probe |
+| [`setup/PITFALLS.md`](setup/PITFALLS.md) | 26 traps, ordered by time wasted. Read before writing any probe |
 | [`scan/repo_scan.py`](scan/repo_scan.py) | Whole-repo inventory → JSON + a two-minute brief |
 | [`lib/req.py`](lib/req.py) | stdlib HTTP client returning `(status, headers, body)` for **every** outcome including 4xx/5xx |
 | [`lib/serve.py`](lib/serve.py) | `ServedApp`: stages a clean copy on a **verified-free** port and kills its own process group |

@@ -18,6 +18,9 @@ venv/
 .vscode/
 *.swp
 
+# Machine-local agent index — derived data, never part of a delivery
+.ragraf/
+
 # Test leftovers
 .pytest_cache/
 .mypy_cache/

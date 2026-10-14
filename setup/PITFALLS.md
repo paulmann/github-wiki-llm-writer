@@ -183,6 +183,24 @@ grep -n 'define(\|const ' md.php                    # configuration surface
 
 ---
 
+### B8. `git clone <file.bundle>` needs an explicit branch
+
+A bundle carries no HEAD symref, so a bare clone fails with:
+
+```
+warning: remote HEAD refers to nonexistent ref, unable to checkout
+fatal: Needed a single revision
+```
+
+and leaves an empty working tree — which then makes every later check "pass"
+vacuously. Always pass the branch:
+
+```bash
+git clone -b main  repo.bundle outdir      # or -b master for a wiki bundle
+```
+
+`git pull <bundle> <branch>` inside an existing clone is unaffected.
+
 ## C. GitHub Wiki specifics
 
 ### C1. Filename ↔ URL ↔ wiki-link must agree
@@ -344,20 +362,3 @@ being created.
 checker over scaffold output for at least three different page lists (including
 the degenerate one-page case) before shipping the template.
 
-### B8. `git clone <file.bundle>` needs an explicit branch
-
-A bundle carries no HEAD symref, so a bare clone fails with:
-
-```
-warning: remote HEAD refers to nonexistent ref, unable to checkout
-fatal: Needed a single revision
-```
-
-and leaves an empty working tree — which then makes every later check "pass"
-vacuously. Always pass the branch:
-
-```bash
-git clone -b main  repo.bundle outdir      # or -b master for a wiki bundle
-```
-
-`git pull <bundle> <branch>` inside an existing clone is unaffected.

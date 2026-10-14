@@ -361,11 +361,37 @@ def audit(wiki_dir: str, terms_file: str | None = None, ban_file: str | None = N
     # optional: banned claims and canonical terms
     if ban_file:
         bans = json.loads(Path(ban_file).read_text())
-        items = bans.items() if isinstance(bans, dict) else [(b, "") for b in bans]
+        # Keys beginning with "_" are documentation, not phrases. templates/ban.json
+        # ships as {_comment: [...], _template_delete_me: {...}, _notes: [...]}; without
+        # this filter those three keys were themselves treated as banned phrases and
+        # fired on any substring ("_comment" matched inside `opcache.save_comments`),
+        # while the real example bans nested under _template_delete_me were never checked.
+        items = ([(k, v) for k, v in bans.items() if not str(k).startswith("_")]
+                 if isinstance(bans, dict) else [(b, "") for b in bans])
+        norm: list[tuple[str, str]] = []
         for phrase, why in items:
+            if not isinstance(phrase, str) or not phrase.strip():
+                continue
+            if isinstance(why, str):
+                reason = why.strip()
+            elif isinstance(why, (list, tuple)):
+                reason = " ".join(str(x) for x in why).strip()
+            elif isinstance(why, dict):
+                reason = "; ".join(f"{k}: {v}" for k, v in why.items()).strip()
+            elif why is None:
+                reason = ""
+            else:
+                reason = str(why)
+            norm.append((phrase.strip(), re.sub(r"\s+", " ", reason)[:200]))
+        if not norm:
+            # Silent no-op is worse than an error: the user believes bans are enforced.
+            warn.append(f"--ban {Path(ban_file).name}: no active phrases (every top-level key "
+                        f"starts with '_'). Promote the examples out of `_template_delete_me` "
+                        f"into top-level keys: {{\"<phrase>\": \"<why>\"}}.")
+        for phrase, reason in norm:
             for p in files:
-                for m in re.finditer(re.escape(phrase), texts[p.name], re.I):
-                    err.append(f"{p.name}: banned claim {phrase!r}" + (f" — {why}" if why else ""))
+                for _m in re.finditer(re.escape(phrase), texts[p.name], re.I):
+                    err.append(f"{p.name}: banned claim {phrase!r}" + (f" — {reason}" if reason else ""))
     if terms_file:
         tj = json.loads(Path(terms_file).read_text())
         canon, banned = tj.get("canonical", {}), tj.get("avoid", {})
@@ -460,6 +486,57 @@ def self_test() -> int:
         for k, v in expect.items():
             print(f"  {'PASS' if v else 'FAIL'}  detects {k}")
         print(f"\n{len(r['errors'])} errors reported on the deliberately broken fixture")
+
+        # ── --ban contract (regression test for the meta-key defect) ──────────
+        # templates/ban.json is a DOCUMENT with meta keys (_comment, _notes,
+        # _template_delete_me). The loader once treated those keys as phrases, so
+        # "_comment" matched inside `opcache.save_comments` and produced phantom
+        # errors while the real example bans were never checked at all.
+        bd = Path(tempfile.mkdtemp(prefix="qa-selftest-ban-"))
+        try:
+            (bd / "Ban Page.md").write_text(
+                "# Ban Page\n\n"
+                "Lead paragraph long enough to satisfy the lead-paragraph check.\n\n"
+                "## Body\n\n"
+                "This tool supports nested lists fully.\n\n"
+                "Set `opcache.save_comments = 1` so the `_comment` marker survives.\n\n"
+                "## See also\n\n- [[Ban Page]]\n")
+            ban = bd / "ban.json"
+            ban.write_text(json.dumps({
+                "_comment": ["explanation that must never be treated as a phrase",
+                             "second line of the explanation"],
+                "_notes": ["more prose"],
+                "_template_delete_me": {"nested example": "not a top-level phrase"},
+                "supports nested lists": "verified false — children render as literal text",
+            }))
+            rb = audit(str(bd), ban_file=str(ban))
+            ball = " ".join(rb["errors"])
+            bwarn = " ".join(rb["warnings"])
+            expect.update({
+                "--ban catches a real banned phrase": "supports nested lists" in ball,
+                "--ban ignores meta keys (_comment)": "_comment" not in ball,
+                "--ban ignores meta keys (_notes)": "_notes" not in ball,
+                "--ban does not fire on save_comments": "save_comments" not in ball,
+                "--ban reports the reason": "verified false" in ball,
+            })
+            # an all-meta ban file must warn, not silently pass
+            ban2 = bd / "ban-empty.json"
+            ban2.write_text(json.dumps({"_comment": ["only documentation"], "_notes": ["x"]}))
+            r2 = audit(str(bd), ban_file=str(ban2))
+            expect["--ban warns when no phrase is active"] = "no active phrases" in " ".join(r2["warnings"])
+            for k in list(expect)[-6:]:
+                v = expect[k]
+                ok = ok and v
+                print(f"  {'PASS' if v else 'FAIL'}  {k}")
+            if " ".join(rb["errors"]):
+                print(f"\n  ban fixture errors: {len(rb['errors'])} "
+                      f"(expected exactly 1: the real banned phrase)")
+                if len(rb["errors"]) != 1:
+                    ok = False
+                    print("  FAIL  ban fixture should report exactly one error")
+        finally:
+            shutil.rmtree(bd, ignore_errors=True)
+
         if not ok:
             print("\nSELF-TEST FAILED — the checker is blind to something. Fix it before trusting a clean run.")
             return 1

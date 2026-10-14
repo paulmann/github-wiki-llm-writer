@@ -13,12 +13,12 @@
 | Metric | Value |
 |---|---|
 | Pages | 20 content pages + `_Sidebar.md` + `_Footer.md` |
-| Words | **72 524** |
-| GitHub Alerts | **152** (NOTE / TIP / IMPORTANT / WARNING / CAUTION) |
-| Mermaid diagrams | **30** (28 `flowchart`, 1 `graph`, 1 `sequenceDiagram`) |
-| Table rows | **1 680** |
+| Words | **73 013** |
+| GitHub Alerts | **154** (NOTE / TIP / IMPORTANT / WARNING / CAUTION) |
+| Mermaid diagrams | **27** (26 `flowchart`, 1 `sequenceDiagram`) |
+| Table rows | **1 687** |
 | Code blocks | ~460 across all languages (`bash`, `php`, `ini`, `nginx`, `apache`, `json`, `python`, `caddyfile`, `yaml`, `xml`, `html`, `markdown`, `text`, `http`) |
-| Internal wiki-links | **340**, all resolving to real pages |
+| Internal wiki-links | **341**, all resolving to real pages |
 | In-page anchors | all resolving (verified against GitHub's slug algorithm) |
 | QA errors remaining | **0** |
 | Marketing filler phrases | **0** |
@@ -27,6 +27,17 @@
 Every behavioural claim was either **traced to a source line** or **executed against a running
 instance**. Nothing was transcribed from the README without verification — and where the README
 is wrong, the wiki says so.
+
+
+> [!NOTE]
+> The figures above are the **final** ones, measured after the three corrections the
+> toolkit itself found in the delivered wiki (a fabricated code quotation replaced with
+> verbatim source; the doubled-slash normaliser documented as also rewriting the query
+> string; and the `&force=true` propagation claim, which the subject's README asserts
+> and its code does not implement). An earlier snapshot of this report recorded
+> 72 524 words / 152 alerts / 30 diagrams / 1 680 table rows / 340 wiki-links; those
+> numbers described the wiki *before* those fixes. Reproduce the current ones with
+> `python3 qa/qa_wiki.py <wiki-dir>`.
 
 ---
 
@@ -43,18 +54,18 @@ is wrong, the wiki says so.
 | 7 | Settings Panel | 2 719 | 11 | 9 | 8 | 2 | 8 |
 | 8 | Markdown Extensions Matrix | 3 898 | 10 | 17 | 15 | 1 | 40 |
 | 9 | Authoring Guide | 3 522 | 9 | 9 | 15 | 2 | 34 |
-| 10 | File Browser and Routing | 3 049 | 14 | 5 | 9 | 2 | 16 |
-| 11 | Self-Updater Guide | 4 297 | 17 | 13 | 9 | 3 | 27 |
+| 10 | File Browser and Routing | 3 161 | 14 | 5 | 9 | 2 | 16 |
+| 11 | Self-Updater Guide | 4 440 | 17 | 13 | 9 | 3 | 27 |
 | 12 | Machine API | 3 745 | 14 | 8 | 8 | 1 | 30 |
 | 13 | File Upload and Clipboard | 3 685 | 12 | 19 | 11 | 3 | 28 |
 | 14 | **Security Hardening Guide** | 4 850 | 14 | 25 | 6 | 0 | 20 |
 | 15 | Performance and Caching | 3 268 | 12 | 12 | 8 | 1 | 24 |
-| 16 | Architecture | 4 656 | 16 | 5 | 1 | 9 | 16 |
+| 16 | Architecture | 4 903 | 16 | 5 | 1 | 9 | 16 |
 | 17 | Troubleshooting | 6 271 | 7 | 17 | 8 | 0 | 46 |
 | 18 | FAQ | 3 757 | 9 | 73 | 0 | 0 | 1 |
 | 19 | Changelog and Versioning | 3 484 | 8 | 1 | 6 | 0 | 15 |
 | 20 | Glossary | 3 280 | 10 | 0 | 0 | 0 | 0 |
-| | **Total** | **72 524** | | | **152** | **30** | |
+| | **Total** | **73 013** | | | **154** | **27** | |
 
 `_Sidebar.md` groups navigation into Overview · Install & configure · Authoring · Operating ·
 Reference and links every page. `_Footer.md` carries version, license, repository, issue-tracker
@@ -97,14 +108,14 @@ GitHub's slug form.
 
 | Check | Tool | Result |
 |---|---|---|
-| Wiki-link targets exist | `qa_full.py` | 340/340 valid |
-| Anchored wiki-links resolve | `qa_full.py` | 0 failures |
-| In-page `#anchor` links resolve | `qa_full.py` with GitHub's exact slug algorithm | 0 failures (12 initial hits were checker bugs, then 1 real bug) |
-| `_Sidebar` / `_Footer` coverage | `qa_full.py` | every page linked, no dead links |
-| Exactly one H1 per page | `qa_full.py` | 20/20 |
-| Lead paragraph after H1 | `qa_full.py` | 20/20 |
-| "See also" on every page | `qa_full.py` | 20/20 |
-| Alert syntax valid | `qa_full.py` | 152/152 use one of the five types |
+| Wiki-link targets exist | `qa/qa_wiki.py` | 341/341 valid |
+| Anchored wiki-links resolve | `qa/qa_wiki.py` | 0 failures |
+| In-page `#anchor` links resolve | `qa/qa_wiki.py` with GitHub's exact slug algorithm | 0 failures (12 initial hits were checker bugs, then 1 real bug) |
+| `_Sidebar` / `_Footer` coverage | `qa/qa_wiki.py` | every page linked, no dead links |
+| Exactly one H1 per page | `qa/qa_wiki.py` | 20/20 |
+| Lead paragraph after H1 | `qa/qa_wiki.py` | 20/20 |
+| "See also" on every page | `qa/qa_wiki.py` | 20/20 |
+| Alert syntax valid | `qa/qa_wiki.py` | 154/154 use one of the five types |
 | Code-fence nesting | dedicated checker | **1 real defect found and fixed** (a 3-backtick example containing a 3-backtick fence, in Authoring Guide) → upgraded to 4 backticks; 0 problems remain |
 | Bash blocks parse | `bash -n` on all extracted blocks | 895 lines, syntax OK |
 | Mermaid sanity | bracket/quote balance, bare `&`, unquoted risky labels | **5 real risks fixed** (bare `&` in an unquoted edge label; `&force` inside labels; a regex with backslashes in a node label; `key[]` and `{version}` in labels) |

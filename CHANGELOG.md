@@ -1,5 +1,61 @@
 # Changelog
 
+## 1.0.1 — publication-readiness fixes
+
+Found by an independent pre-publication audit. Every item below was reproduced by
+execution before being fixed, and every fix is covered by a check that now runs in CI.
+
+### Fixed
+
+- **`qa/qa_wiki.py --ban` was broken against its own template.** The loader treated
+  every top-level key of the ban file as a phrase, so the documentation keys in
+  `templates/ban.json` (`_comment`, `_notes`, `_template_delete_me`) became banned
+  phrases. `"_comment"` matched inside `opcache.save_comments = 1` and produced three
+  phantom errors on the reference wiki, while the real example bans nested under
+  `_template_delete_me` were never checked at all — a fixture containing a genuinely
+  banned claim reported `ERRORS (0)`. Meta keys (leading `_`) are now skipped, `why`
+  is normalised to a single short string instead of dumping a 16-element list into
+  the message, and an all-meta ban file now emits a warning rather than silently
+  enforcing nothing. The template itself is unchanged: its explanatory structure is
+  the reason it exists.
+- **`--self-test` did not cover `--ban`.** Added six scenarios reproducing the defect
+  from both sides: a real banned phrase is caught, `_comment`/`_notes` are ignored,
+  `save_comments` does not fire, the reason is reported, and an all-meta file warns.
+  Self-test is now 15 detections (was 9).
+- **CI never exercised the documented audit command.** `SKILL.md`, `AGENTS.md` and
+  `PROMPT.md` all instruct running `--terms` and `--ban`, but the workflow mentioned
+  neither, so the defect above was unreachable by CI. Added three steps: a
+  `--ban`/`--terms` fixture run, a check that every path referenced by `SKILL.md`,
+  `AGENTS.md` and `README.md` exists, and a check that no tracked file is excluded by
+  `.gitignore`. The second and third exist because a `lib/` rule in the target
+  repository's `.gitignore` was silently dropping `lib/req.py` and `lib/serve.py` —
+  two files the CI `--help` step and `probe/webapp_probe.py` both depend on.
+- **`setup/PITFALLS.md` miscounted and mis-ordered.** It documents 26 traps, not 27;
+  `README.md` and `CHANGELOG.md` claimed 27. The `### B8` section also sat after
+  `### D7`, splitting group B; it is now in place, giving
+  A1–A4, B1–B8, C1–C7, D1–D7.
+- **`examples/REPORT.md` carried stale figures.** It described the wiki before the
+  three corrections the toolkit found in it. Reconciled to the measured values —
+  73 013 words, 154 alerts, 27 mermaid diagrams (26 `flowchart`, 1
+  `sequenceDiagram`), 1 687 table rows, 341 wiki-links — with a note recording the
+  earlier snapshot and how to reproduce the current one. Ten references to the
+  pre-extraction checker name `qa_full.py` now read `qa/qa_wiki.py`.
+- **`.gitignore` was missing `.ragraf/`**, a machine-local agent index that must never
+  be committed.
+- **`PUBLISH.md` described a state that does not exist and a flow that does not
+  work.** It claimed a local committed repository in a directory that ships without
+  `.git`; its Option B (`git pull <bundle> main`) fails with `refusing to merge
+  unrelated histories` because the kit and the target repository have different root
+  commits; and its Option C contained a non-command line
+  (`rm -rf .git/..?  # keep .git…`). Rewritten around a verified
+  `fetch` + `merge --allow-unrelated-histories` flow, including the two add/add
+  conflicts it produces and how to resolve them, and an explicit prohibition on
+  force-push (the target repository contains the owner's `Initial commit`).
+- **`publish/publish.sh`** now documents that cloning a bundle directly requires an
+  explicit branch (`git clone -b main file.bundle`), because without it the clone
+  fails with `remote HEAD refers to nonexistent ref` and leaves an empty working tree
+  — after which every later check passes vacuously. Recorded as `PITFALLS.md` §B8.
+
 ## 1.0.0 — initial public release
 
 Extracted from a completed run that produced a 22-file, 73 013-word GitHub Wiki
@@ -13,7 +69,7 @@ outstanding QA errors.
 - `PROMPT.md` — a ready-to-paste task prompt; only the header block changes.
 - `setup/bootstrap.sh` — idempotent environment setup with a capability and
   network-egress report.
-- `setup/PITFALLS.md` — 27 traps encountered in the reference run, ordered by
+- `setup/PITFALLS.md` — 26 traps encountered in the reference run, ordered by
   time wasted, with the three that produce silently wrong results first.
 - `scan/repo_scan.py` — whole-repository inventory to JSON plus a two-minute
   brief. Symbol extraction for PHP, JS/TS, Python, Go, Ruby, Java, C#, PowerShell
