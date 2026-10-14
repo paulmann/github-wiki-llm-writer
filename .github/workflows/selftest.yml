@@ -99,6 +99,11 @@ jobs:
 
       - name: Scaffold round-trip (scaffold output must be QA-clean)
         run: |
+          # Both grouping branches are exercised on purpose. The explicit-grouping
+          # branch (`--progress` / `--groups`) used to return before writing
+          # `_Footer.md`, and this step could not see it: it drove only the heuristic
+          # path, and a missing footer is a warning rather than an error, so
+          # `--strict` stayed green while the skeleton shipped incomplete.
           set -e
           for pages in "Home,Getting Started,Glossary" \
                        "Home,Architecture,Security Hardening Guide,FAQ,Troubleshooting" \
@@ -106,8 +111,38 @@ jobs:
             rm -rf /tmp/rt
             python3 scaffold/new_page.py /tmp/rt --init --project RT --pages "$pages" >/dev/null
             python3 qa/qa_wiki.py /tmp/rt --strict
+            # the skeleton is only complete with chrome on every grouping path
+            for f in Home.md _Sidebar.md _Footer.md; do
+              [ -f "/tmp/rt/$f" ] || { echo "  FAIL heuristic scaffold lacks $f"; exit 1; }
+            done
             echo "  ok   [$pages]"
           done
+          # explicit grouping from --groups
+          rm -rf /tmp/rtg
+          python3 scaffold/new_page.py /tmp/rtg --init --project RT \
+            --groups 'Overview:Home,Getting Started|Usage:Research and Probing Guide|Reference:Glossary' >/dev/null
+          python3 qa/qa_wiki.py /tmp/rtg --strict
+          for f in Home.md _Sidebar.md _Footer.md; do
+            [ -f "/tmp/rtg/$f" ] || { echo "  FAIL --groups scaffold lacks $f"; exit 1; }
+          done
+          echo "  ok   [--groups]"
+          # explicit grouping from --progress, which is the preferred source
+          rm -rf /tmp/rtp
+          python3 - <<'PY'
+          import json, pathlib
+          pathlib.Path('/tmp/rtp').mkdir(parents=True, exist_ok=True)
+          pathlib.Path('/tmp/rtp/PROGRESS.json').write_text(json.dumps({
+              "project": "RT",
+              "pages": [{"title": "Home", "group": "Overview"},
+                        {"title": "Getting Started", "group": "Overview"},
+                        {"title": "Glossary", "group": "Reference"}]}), encoding="utf-8")
+          PY
+          python3 scaffold/new_page.py /tmp/rtp/out --init --project RT --progress /tmp/rtp/PROGRESS.json >/dev/null
+          python3 qa/qa_wiki.py /tmp/rtp/out --strict
+          for f in Home.md _Sidebar.md _Footer.md; do
+            [ -f "/tmp/rtp/out/$f" ] || { echo "  FAIL --progress scaffold lacks $f"; exit 1; }
+          done
+          echo "  ok   [--progress]"
 
       - name: --ban and --terms work against their own templates
         run: |

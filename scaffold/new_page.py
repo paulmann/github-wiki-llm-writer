@@ -223,13 +223,42 @@ def main() -> int:
         except Exception as e:
             print(f"  could not read --progress ({e}); falling back")
 
+    written: list[str] = []
+
     def write(name: str, content: str) -> None:
         p = W / name
         if p.exists() and not a.force:
             print(f"  exists, skipped (use --force to overwrite): {name}")
             return
         p.write_text(content, encoding="utf-8")
+        written.append(name)
         print(f"  wrote {name} ({len(content.split())} words)")
+
+    def write_footer(page_list: list[str]) -> None:
+        """Write _Footer.md, with links derived from the pages actually created.
+
+        Both grouping branches MUST call this. The explicit-grouping branch
+        (`--progress` / `--groups`) used to write the sidebar and the stubs and then
+        `return` before reaching the footer, so it produced a skeleton with no
+        `_Footer.md` while still announcing "N+2 files". CI could not catch it: the
+        round-trip step used only the heuristic path, and a missing footer is a
+        WARNING rather than an error, so `--strict` stayed green.
+
+        Never hardcode a page name here: `_Footer.md` renders on every page and
+        qa_wiki.py treats a dead link in it as an error, so links are derived from
+        the page list that is actually being created.
+        """
+        present = set(page_list)
+        links = " · ".join(f"[[{p}]]" for p in ("Home", "Glossary", "FAQ", "Troubleshooting")
+                           if p in present) or "[[Home]]"
+        cref = ""
+        for cand in ("Changelog and Versioning", "Changelog", "Versioning"):
+            if cand in present:
+                cref = f"; see [[{cand}]]"
+                break
+        write("_Footer.md", FOOTER_TMPL.format(project=a.project, version=a.version,
+                                               license=a.license, repo_url=a.repo_url,
+                                               commit=a.commit, changelog_ref=cref, links=links))
 
     if a.init:
         all_pages = pages or ["Home", "Getting Started", "Configuration Reference",
@@ -285,7 +314,8 @@ def main() -> int:
                     contents=contents_for(["Overview", "Details", "Examples", "See also"]),
                     body="\n\n".join(f"## {s}\n\nTODO" for s in ["Overview", "Details", "Examples"]),
                     seealso=seealso_for(p, all_pages)))
-            print(f"\nScaffolded {len(all_pages) + 2} files in {W} (explicit grouping)")
+            write_footer(all_pages)
+            print(f"\nScaffolded {len(written)} files in {W} (explicit grouping)")
             print("Next: fill the TODOs, then run  python3 qa/qa_wiki.py " + str(W))
             return 0
         groups = {"overview": [], "install": [], "usage": [], "operating": [], "reference": []}
@@ -306,22 +336,7 @@ def main() -> int:
         write("_Sidebar.md", SIDEBAR_TMPL.format(
             **{k: "\n".join(f"[[{x}]]" for x in v) or "_(none yet)_" for k, v in groups.items()},
             version_line=f"`{a.version}` · {a.license}"))
-        # Only reference pages that will actually exist — qa_wiki.py treats a
-        # dead link in _Footer.md as an error, and it renders on every page.
-        # NEVER hardcode a page name here: _Footer.md renders on every page and
-        # qa_wiki.py treats a dead link in it as an error. Derive the links from
-        # the page list that is actually being created.
-        present = set(all_pages)
-        links = " · ".join(f"[[{p}]]" for p in ("Home", "Glossary", "FAQ", "Troubleshooting")
-                           if p in present) or "[[Home]]"
-        cref = ""
-        for cand in ("Changelog and Versioning", "Changelog", "Versioning"):
-            if cand in present:
-                cref = f"; see [[{cand}]]"
-                break
-        write("_Footer.md", FOOTER_TMPL.format(project=a.project, version=a.version,
-                                               license=a.license, repo_url=a.repo_url,
-                                               commit=a.commit, changelog_ref=cref, links=links))
+        write_footer(all_pages)
         for p in all_pages:
             if p == "Home":
                 continue
@@ -332,7 +347,7 @@ def main() -> int:
                 contents=contents_for(secs + ["See also"]),
                 body="\n\n".join(f"## {s}\n\nTODO" for s in secs),
                 seealso=seealso_for(p, all_pages)))
-        print(f"\nScaffolded {len(all_pages) + 2} files in {W}")
+        print(f"\nScaffolded {len(written)} files in {W}")
         print("Next: fill the TODOs, then run  python3 qa/qa_wiki.py " + str(W))
         return 0
 

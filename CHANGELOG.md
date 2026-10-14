@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.2.2 — the scaffold wrote an incomplete skeleton on the explicit-grouping path
+
+Found by running the kit against itself: the wiki for this very project was scaffolded
+with `--progress`, and the run produced 21 files where 22 had been announced.
+
+### Fixed
+
+- **`scaffold/new_page.py` omitted `_Footer.md` whenever a grouping was given.**
+  The explicit-grouping branch (`--progress` or `--groups`) wrote `Home.md`,
+  `_Sidebar.md` and every page stub, then `return`ed — and the footer was only
+  written further down, on the heuristic path that the branch never reached. Because
+  `_Footer.md` renders on **every** page, the delivered wiki silently shipped without
+  its footer, the version/commit line and the trust anchor. The footer write is now a
+  shared helper both branches call, and the CLI no longer claims more files than it
+  wrote: the count is taken from what `write()` actually did (it also now accounts
+  for files skipped by an existing target instead of counting them as written).
+- **CI could not have caught it.** The round-trip step drove only the heuristic path,
+  and a missing `_Footer.md` is a warning rather than an error, so `--strict` stayed
+  green. The step now exercises all three grouping sources — `--pages`, `--groups`
+  and `--progress` — and asserts that `Home.md`, `_Sidebar.md` and `_Footer.md` exist
+  in each, so a regression on either branch fails the build.
+
+### Verified
+
+- All three grouping paths plus the degenerate one-page case produce `_Footer.md`,
+  and each scaffolded tree audits at 0 errors / 0 warnings under `--strict`.
+- Reported file counts now equal the files actually on disk (5 / 9 / 5 / 3).
+- Negative controls: deleting the footer call from the explicit branch fails the CI
+  step (`FAIL --groups scaffold lacks _Footer.md`), and deleting it from the
+  heuristic branch fails it too. Both were confirmed on Windows and on a real
+  GNU/Linux host (Debian 12, bash 5.2.15, Python 3.11.2) under
+  `bash --noprofile --norc -eo pipefail` — the full eleven-step gate is green there.
+
 ## 1.2.1 — restore the runnable CI gate, and stop the template banning itself
 
 Two things happened at once before this release: the work published as `92f1ce5`
