@@ -247,7 +247,7 @@ the delivery, not scaffolding to be thrown away.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+PolyForm Noncommercial 1.0.0 — see [LICENSE](LICENSE).
 
 ## See also
 
