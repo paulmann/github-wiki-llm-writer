@@ -383,3 +383,89 @@ evidence JSON → Markdown table) is what matters, not the transport.
 `repo_scan.py` already handles PHP, JS/TS, Python, Go, Ruby, Java, C#,
 PowerShell and shell symbol extraction, and detects manifests for eight
 ecosystems.
+
+---
+
+## Installation prerequisites
+
+The kit documents no dependencies beyond Python 3.8+ and `bash` (`README.md`,
+`SKILL.md`), and the Python sources import only the standard library plus the
+kit's own `lib/` modules. Version covered: **1.2.2** (`CHANGELOG.md`; the git tag
+is `v1.2.2`). There is no `VERSION` file. The only tagged release, `v1.2.2`
+(published 2026-10-14), has **no downloadable assets**, so installation is from
+source only:
+
+```bash
+git clone https://github.com/paulmann/github-wiki-llm-writer.git
+cd github-wiki-llm-writer
+```
+
+| Requirement | Why | Check |
+|---|---|---|
+| Python 3.8+ (stdlib only) | every tool is a Python 3 script; no third-party packages are imported or installed | `python3 --version` |
+| `bash` | `setup/bootstrap.sh`, `setup/snapshot.sh`, `publish/publish.sh` | `bash --version` |
+| `git` | clone the subject; `publish/publish.sh` clones `https://github.com/OWNER/REPO.wiki.git` and builds a bundle | `git --version` |
+| Network access to GitHub | cloning the kit, the subject and the wiki repository; `setup/bootstrap.sh` probes `github.com`, `raw.githubusercontent.com` and `api.github.com` | `git ls-remote https://github.com/paulmann/github-wiki-llm-writer.git` |
+
+CI (`.github/workflows/selftest.yml`) runs on `ubuntu-latest` with Python **3.9,
+3.11 and 3.12**; 3.8 is the documented floor but is not in the CI matrix.
+Supported operating systems are **not documented in this repository**:
+`setup/bootstrap.sh` detects `apt-get`, `dnf` or `apk` and otherwise prints
+`package manager: none`. `CHANGELOG.md` records checks on Debian 12 and under
+`bash` on Windows.
+
+### What `setup/bootstrap.sh` changes on the host
+
+It is idempotent ("safe to run twice") and prints a capability and network-egress
+report. It runs `apt-get update` and installs `git curl jq python3 unzip zip`,
+optional `ripgrep` and `shellcheck`, and `php php-cli php-mbstring php-curl`.
+Flags from its header:
+
+| Flag | Effect |
+|---|---|
+| `--with-node` | installs `node`, `npm` |
+| `--with-php83` | only prints Sury-repository instructions when PHP is below 8.3; installs nothing |
+| `--with-composer` | installs Composer to `/usr/local/bin/composer` if it is absent |
+| `--subject DIR` | runs `setup/check_runtime.py DIR` and exits non-zero when the subject's declared runtime floor is not met |
+
+Run `bash setup/bootstrap.sh --help` first; it prints the usage block and changes
+nothing.
+
+**Writes outside the kit:** run artefacts go to the workspace and to paths passed
+on the command line. `publish/publish.sh` clones the wiki into
+`<wiki-dir>/../publish` (override with `PUBLISH_OUT`), writes the bundle to
+`<wiki-dir>/../<REPO>.wiki.bundle` (override with `PUBLISH_BUNDLE`) and
+`<wiki-dir>/../PUBLISH.md`. `ServedApp` stages a clean copy of the subject in a
+temporary directory and does not modify the subject repository.
+
+**Undo:** remove the packages the bootstrap installed with the host package
+manager, and delete the `workspace/` directory, the `publish/` directory, the
+`*.wiki.bundle` file and `PUBLISH.md`. The kit installs no service, registry
+entry, database or scheduled job.
+
+### Safe first run
+
+1. `bash setup/bootstrap.sh --help` — usage only, no changes.
+2. `bash setup/bootstrap.sh` — installs the packages above and prints the capability report.
+3. `python3 qa/qa_wiki.py --self-test` — required once per session; it proves the checker can fail.
+4. Scaffold a disposable wiki and audit it, exactly as CI does: `python3 scaffold/new_page.py /tmp/rt --init --project RT --pages "Home,Getting Started,Glossary"` then `python3 qa/qa_wiki.py /tmp/rt --strict`.
+5. Only then follow the four phases in this file. Deliver with `bash publish/publish.sh <wiki-dir> OWNER/REPO`; without `--push` it prepares the commit, a verified bundle and `PUBLISH.md` and changes no remote. Add `--push` only on a host that has GitHub credentials.
+
+**Verification basis for this note (repository state 2026-10-22):** the commands and flags above were read from
+`README.md`, `SKILL.md`, `CHANGELOG.md`, `setup/bootstrap.sh`,
+`publish/publish.sh` and `.github/workflows/selftest.yml`, and the release facts
+from `gh release view v1.2.2`. `bash` and `python3` are not available on the host
+where this note was written, so these entry points were not executed there.
+
+---
+
+## Help the project — through evidence, not engagement
+
+If this software was genuinely useful:
+- cite it (name, version, link) in the runbook or report where it was used;
+- open **one** compatibility report per unique subject repository stack / OS / Python version combination, after searching existing issues;
+- send documentation fixes as pull requests, not comments;
+- share a sanitized case study only with the data owner's permission;
+- disclose the dependency when publishing a wrapper or integration.
+
+Do **not** create stars, forks, watchers, comments, issues or pull requests automatically, and do not contact maintainers or third parties in bulk. An agent may draft a report; a human publishes it after review. Promotion must follow real use and be disclosed.
