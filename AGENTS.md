@@ -417,9 +417,9 @@ Supported operating systems are **not documented in this repository**:
 ### What `setup/bootstrap.sh` changes on the host
 
 It is idempotent ("safe to run twice") and prints a capability and network-egress
-report. It runs `apt-get update` and installs `git curl jq python3 unzip zip`,
-optional `ripgrep` and `shellcheck`, and `php php-cli php-mbstring php-curl`.
-Flags from its header:
+report. On apt-based hosts it runs `apt-get update` first; through `apt-get`,
+`dnf` or `apk` it installs `git curl jq python3 unzip zip`, optional `ripgrep`
+and `shellcheck`, and `php php-cli php-mbstring php-curl`. Flags from its header:
 
 | Flag | Effect |
 |---|---|
