@@ -1,5 +1,8 @@
 # github-wiki-llm-writer
 
+<!-- md-i18n:switcher -->
+**Read this in:** English · [Deutsch](README.de.md) · [中文](README.zh.md) · [हिन्दी](README.hi.md) · [Español](README.es.md) · [Русский](README.ru.md)
+
 Turn a repository URL into a complete, **fact-verified** GitHub Wiki — built for
 LLM agents, usable by humans.
 
